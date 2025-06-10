@@ -1,4 +1,4 @@
-package com.example.mic_stream_recorder
+package com.yasinarik.mic_stream_recorder
 
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -24,4 +24,4 @@ internal class MicStreamRecorderPluginTest {
 
     Mockito.verify(mockResult).success("Android " + android.os.Build.VERSION.RELEASE)
   }
-}
+} 
