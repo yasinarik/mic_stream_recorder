@@ -2,9 +2,10 @@ import 'mic_stream_recorder_platform_interface.dart';
 
 /// Audio format options for recording
 enum AudioFormat {
-  m4a,
-  wav,
-  aiff,
+  m4a, // Both iOS and Android
+  wav, // Both iOS and Android
+  aiff, // iOS only
+  webm, // Android only
 }
 
 /// Audio quality options for recording
