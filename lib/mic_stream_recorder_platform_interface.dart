@@ -26,4 +26,50 @@ abstract class MicStreamRecorderPlatform extends PlatformInterface {
   Future<String?> getPlatformVersion() {
     throw UnimplementedError('platformVersion() has not been implemented.');
   }
+
+  /// Start recording audio
+  Future<void> startRecording() {
+    throw UnimplementedError('startRecording() has not been implemented.');
+  }
+
+  /// Stop recording audio and return the file path
+  Future<String?> stopRecording() {
+    throw UnimplementedError('stopRecording() has not been implemented.');
+  }
+
+  /// Play the recorded audio file
+  Future<void> playRecording([String? filePath]) {
+    throw UnimplementedError('playRecording() has not been implemented.');
+  }
+
+  /// Pause audio playback
+  Future<void> pausePlayback() {
+    throw UnimplementedError('pausePlayback() has not been implemented.');
+  }
+
+  /// Stop audio playback
+  Future<void> stopPlayback() {
+    throw UnimplementedError('stopPlayback() has not been implemented.');
+  }
+
+  /// Check if audio is currently playing
+  Future<bool> isPlaying() {
+    throw UnimplementedError('isPlaying() has not been implemented.');
+  }
+
+  /// Configure recording settings
+  Future<void> configureRecording({
+    double? sampleRate,
+    int? channels,
+    int? bufferSize,
+    String? audioFormat,
+    int? audioQuality,
+  }) {
+    throw UnimplementedError('configureRecording() has not been implemented.');
+  }
+
+  /// Get amplitude stream for real-time audio level monitoring
+  Stream<double> getAmplitudeStream() {
+    throw UnimplementedError('getAmplitudeStream() has not been implemented.');
+  }
 }
