@@ -61,4 +61,17 @@ void main() {
     final result = await recorder.stopRecording();
     expect(result, '/path/to/recording.m4a');
   });
+
+  test('configureRecording with amplitude normalization', () async {
+    final recorder = MicStreamRecorder();
+    expect(
+        () => recorder.configureRecording(
+              sampleRate: 44100,
+              channels: 1,
+              audioQuality: AudioQuality.high,
+              amplitudeMin: -1.0,
+              amplitudeMax: 1.0,
+            ),
+        returnsNormally);
+  });
 }

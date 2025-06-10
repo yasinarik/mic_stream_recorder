@@ -58,15 +58,18 @@ class MethodChannelMicStreamRecorder extends MicStreamRecorderPlatform {
     int? channels,
     int? bufferSize,
     int? audioQuality,
+    double? amplitudeMin,
+    double? amplitudeMax,
   }) async {
-    final arguments = <String, dynamic>{};
+    final args = <String, dynamic>{};
+    if (sampleRate != null) args['sampleRate'] = sampleRate;
+    if (channels != null) args['channels'] = channels;
+    if (bufferSize != null) args['bufferSize'] = bufferSize;
+    if (audioQuality != null) args['audioQuality'] = audioQuality;
+    if (amplitudeMin != null) args['amplitudeMin'] = amplitudeMin;
+    if (amplitudeMax != null) args['amplitudeMax'] = amplitudeMax;
 
-    if (sampleRate != null) arguments['sampleRate'] = sampleRate;
-    if (channels != null) arguments['channels'] = channels;
-    if (bufferSize != null) arguments['bufferSize'] = bufferSize;
-    if (audioQuality != null) arguments['audioQuality'] = audioQuality;
-
-    await methodChannel.invokeMethod<void>('configureRecording', arguments);
+    await methodChannel.invokeMethod<void>('configureRecording', args);
   }
 
   @override

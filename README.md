@@ -147,6 +147,8 @@ Configure recording settings before starting recording.
 - `channels` (int?): Number of audio channels (1 or 2)
 - `bufferSize` (int?): Audio buffer size (128, 256, 512, 1024)
 - `audioQuality` (AudioQuality?): Recording quality (min, low, medium, high, max)
+- `amplitudeMin` (double?): Minimum value for amplitude normalization (default: 0.0)
+- `amplitudeMax` (double?): Maximum value for amplitude normalization (default: 1.0)
 
 **Example:**
 ```dart
@@ -154,18 +156,27 @@ await recorder.configureRecording(
   sampleRate: 44100,
   channels: 1,
   audioQuality: AudioQuality.high,
+  amplitudeMin: -1.0,  // Custom range from -1.0 to 1.0
+  amplitudeMax: 1.0,
 );
 ```
 
 ### Real-time Monitoring
 
 #### `amplitudeStream`
-Stream of real-time amplitude values (0.0 to 1.0) during recording.
+Stream of real-time amplitude values during recording. The range is configurable 
+through `amplitudeMin` and `amplitudeMax` parameters (default: 0.0 to 1.0).
 
 **Example:**
 ```dart
+// Configure custom amplitude range
+await recorder.configureRecording(
+  amplitudeMin: -100.0,
+  amplitudeMax: 100.0,
+);
+
 recorder.amplitudeStream.listen((amplitude) {
-  print('Current amplitude: ${(amplitude * 100).toStringAsFixed(1)}%');
+  print('Current amplitude: ${amplitude.toStringAsFixed(1)}'); // Range: -100.0 to 100.0
   // Update UI amplitude meter
 });
 ```
@@ -206,6 +217,8 @@ class _RecordingPageState extends State<RecordingPage> {
         sampleRate: 44100,
         channels: 1,
         audioQuality: AudioQuality.high,
+        amplitudeMin: 0.0,   // Custom amplitude range
+        amplitudeMax: 1.0,
       );
 
       // Start recording with custom filename
@@ -323,6 +336,32 @@ Supported sample rates: 8000, 16000, 22050, 44100, 48000 Hz
 
 ### Buffer Sizes
 Supported buffer sizes: 128, 256, 512, 1024 samples
+
+### Amplitude Normalization
+Configure custom amplitude ranges for real-time monitoring:
+
+```dart
+// Default range (0.0 to 1.0)
+await recorder.configureRecording();
+
+// Custom percentage range (0 to 100)
+await recorder.configureRecording(
+  amplitudeMin: 0.0,
+  amplitudeMax: 100.0,
+);
+
+// Symmetric range (-1.0 to 1.0)
+await recorder.configureRecording(
+  amplitudeMin: -1.0,
+  amplitudeMax: 1.0,
+);
+
+// Decibel-like range (-80 to 0)
+await recorder.configureRecording(
+  amplitudeMin: -80.0,
+  amplitudeMax: 0.0,
+);
+```
 
 ## Technical Implementation
 

@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2024-12-29
+
+### Added
+- **Configurable Amplitude Normalization**
+  - Added `amplitudeMin` and `amplitudeMax` parameters to `configureRecording()`
+  - Custom amplitude ranges for real-time monitoring (default: 0.0 to 1.0)
+  - Support for percentage ranges (0-100), symmetric ranges (-1.0 to 1.0), decibel-like ranges (-80 to 0)
+  - Updated both iOS and Android implementations with custom normalization
+  - Enhanced documentation with amplitude normalization examples
+
+### Enhanced API
+- `configureRecording()` now accepts `amplitudeMin` and `amplitudeMax` parameters
+- `RecordingConfig` class updated with amplitude normalization properties
+- Amplitude stream now respects configured normalization range
+
 ## [1.0.0] - 2024-12-29
 
 ### Added

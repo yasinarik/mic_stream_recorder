@@ -31,7 +31,9 @@ data class RecordingConfig(
     var sampleRate: Int = 44100,
     var channels: Int = 1,
     var bufferSize: Int = 1024,
-    var audioQuality: AudioQuality = AudioQuality.HIGH
+    var audioQuality: AudioQuality = AudioQuality.HIGH,
+    var amplitudeMin: Double = 0.0,
+    var amplitudeMax: Double = 1.0
 ) {
     enum class AudioQuality(val bitRate: Int) {
         MIN(32000),
@@ -319,9 +321,12 @@ class MicStreamRecorderPlugin: FlutterPlugin, MethodCallHandler, ActivityAware,
         val rms = sqrt(sum / length)
         val db = 20 * log10(rms + 1) // Add 1 to avoid log(0)
         
-        // Normalize to 0.0 - 1.0 range
+        // Normalize to 0.0 - 1.0 range first
         val normalizedDb = maxOf(0.0, minOf(80.0, db)) // Clamp between 0-80 dB
-        return normalizedDb / 80.0
+        val baseNormalized = normalizedDb / 80.0
+        
+        // Apply custom range normalization
+        return config.amplitudeMin + (baseNormalized * (config.amplitudeMax - config.amplitudeMin))
     }
 
     // MARK: - Playback Methods
@@ -414,6 +419,16 @@ class MicStreamRecorderPlugin: FlutterPlugin, MethodCallHandler, ActivityAware,
                         4 -> RecordingConfig.AudioQuality.MAX
                         else -> RecordingConfig.AudioQuality.HIGH
                     }
+                }
+
+                args["amplitudeMin"]?.let {
+                    val amplitudeMin = (it as? Number)?.toDouble() ?: 0.0
+                    config.amplitudeMin = amplitudeMin
+                }
+
+                args["amplitudeMax"]?.let {
+                    val amplitudeMax = (it as? Number)?.toDouble() ?: 1.0
+                    config.amplitudeMax = amplitudeMax
                 }
             }
 

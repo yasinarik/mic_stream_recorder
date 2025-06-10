@@ -63,6 +63,8 @@ abstract class MicStreamRecorderPlatform extends PlatformInterface {
     int? channels,
     int? bufferSize,
     int? audioQuality,
+    double? amplitudeMin,
+    double? amplitudeMax,
   }) {
     throw UnimplementedError('configureRecording() has not been implemented.');
   }

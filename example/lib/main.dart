@@ -33,11 +33,18 @@ class _RecordingPageState extends State<RecordingPage> {
   final _micStreamRecorderPlugin = MicStreamRecorder();
 
   bool _isRecording = false;
+
   bool _isPlaying = false;
+
   double _currentAmplitude = 0.0;
+
   String? _lastRecordingPath;
+
   List<String> _recordingFiles = [];
+
   final TextEditingController _fileNameController = TextEditingController();
+
+  RangeValues _amplitudeRange = const RangeValues(0.0, 1.0);
 
   @override
   void initState() {
@@ -95,8 +102,20 @@ class _RecordingPageState extends State<RecordingPage> {
         SnackBar(
           content: Text(message),
           backgroundColor: Colors.green,
+          duration: const Duration(seconds: 1), // Reduced duration
         ),
       );
+    }
+  }
+
+  Future<void> _updateAmplitudeRange() async {
+    try {
+      await _micStreamRecorderPlugin.configureRecording(
+        amplitudeMin: _amplitudeRange.start,
+        amplitudeMax: _amplitudeRange.end,
+      );
+    } catch (e) {
+      _showError('Failed to update amplitude range: $e');
     }
   }
 
@@ -104,6 +123,9 @@ class _RecordingPageState extends State<RecordingPage> {
     if (_isRecording) return;
 
     try {
+      // Configure amplitude range before recording
+      await _updateAmplitudeRange();
+
       String? customPath;
       if (_fileNameController.text.isNotEmpty) {
         customPath = await _getCustomFilePath(_fileNameController.text);
@@ -113,9 +135,10 @@ class _RecordingPageState extends State<RecordingPage> {
       setState(() {
         _isRecording = true;
       });
-      _showSuccess(customPath != null
-          ? 'Started recording to: ${_fileNameController.text}.m4a'
-          : 'Started recording to default location');
+      // Only show success message for custom files
+      if (customPath != null) {
+        _showSuccess('Recording: ${_fileNameController.text}.m4a');
+      }
     } catch (e) {
       _showError('Failed to start recording: $e');
     }
@@ -138,8 +161,7 @@ class _RecordingPageState extends State<RecordingPage> {
       // Reload the file list
       await _loadRecordingFiles();
 
-      _showSuccess(
-          'Recording saved: ${recordingPath?.split('/').last ?? 'Unknown'}');
+      _showSuccess('Recording saved');
     } catch (e) {
       _showError('Failed to stop recording: $e');
     }
@@ -151,7 +173,6 @@ class _RecordingPageState extends State<RecordingPage> {
       setState(() {
         _isPlaying = true;
       });
-      _showSuccess('Playing: ${filePath.split('/').last}');
 
       // Check playing status periodically
       _checkPlayingStatus();
@@ -166,7 +187,6 @@ class _RecordingPageState extends State<RecordingPage> {
       setState(() {
         _isPlaying = false;
       });
-      _showSuccess('Playback paused');
     } catch (e) {
       _showError('Failed to pause playback: $e');
     }
@@ -178,7 +198,6 @@ class _RecordingPageState extends State<RecordingPage> {
       setState(() {
         _isPlaying = false;
       });
-      _showSuccess('Playback stopped');
     } catch (e) {
       _showError('Failed to stop playback: $e');
     }
@@ -193,7 +212,6 @@ class _RecordingPageState extends State<RecordingPage> {
           setState(() {
             _isPlaying = false;
           });
-          _showSuccess('Playback completed');
           break;
         }
       }
@@ -201,9 +219,18 @@ class _RecordingPageState extends State<RecordingPage> {
   }
 
   Color _getAmplitudeColor() {
-    if (_currentAmplitude < 0.3) return Colors.green;
-    if (_currentAmplitude < 0.7) return Colors.orange;
+    final normalizedAmplitude = (_currentAmplitude - _amplitudeRange.start) /
+        (_amplitudeRange.end - _amplitudeRange.start);
+    if (normalizedAmplitude < 0.3) return Colors.green;
+    if (normalizedAmplitude < 0.7) return Colors.orange;
     return Colors.red;
+  }
+
+  double _getAmplitudeProgress() {
+    if (_amplitudeRange.end == _amplitudeRange.start) return 0.0;
+    return ((_currentAmplitude - _amplitudeRange.start) /
+            (_amplitudeRange.end - _amplitudeRange.start))
+        .clamp(0.0, 1.0);
   }
 
   @override
@@ -250,6 +277,93 @@ class _RecordingPageState extends State<RecordingPage> {
             ),
             const SizedBox(height: 16),
 
+            // Amplitude normalization controls
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Amplitude Range',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Min: ${_amplitudeRange.start.toStringAsFixed(1)} | Max: ${_amplitudeRange.end.toStringAsFixed(1)}',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    RangeSlider(
+                      values: _amplitudeRange,
+                      min: -100.0,
+                      max: 100.0,
+                      divisions: 200,
+                      labels: RangeLabels(
+                        _amplitudeRange.start.toStringAsFixed(1),
+                        _amplitudeRange.end.toStringAsFixed(1),
+                      ),
+                      onChanged: _isRecording
+                          ? null
+                          : (RangeValues values) {
+                              setState(() {
+                                _amplitudeRange = values;
+                              });
+                            },
+                      onChangeEnd: _isRecording
+                          ? null
+                          : (RangeValues values) {
+                              _updateAmplitudeRange();
+                            },
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        TextButton(
+                          onPressed: _isRecording
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _amplitudeRange =
+                                        const RangeValues(0.0, 1.0);
+                                  });
+                                  _updateAmplitudeRange();
+                                },
+                          child: const Text('0-1'),
+                        ),
+                        TextButton(
+                          onPressed: _isRecording
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _amplitudeRange =
+                                        const RangeValues(-1.0, 1.0);
+                                  });
+                                  _updateAmplitudeRange();
+                                },
+                          child: const Text('-1 to 1'),
+                        ),
+                        TextButton(
+                          onPressed: _isRecording
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _amplitudeRange =
+                                        const RangeValues(0.0, 100.0);
+                                  });
+                                  _updateAmplitudeRange();
+                                },
+                          child: const Text('0-100'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             // Recording controls
             Card(
               child: Padding(
@@ -265,12 +379,12 @@ class _RecordingPageState extends State<RecordingPage> {
                     // Amplitude meter
                     if (_isRecording) ...[
                       Text(
-                        'Audio Level',
+                        'Audio Level: ${_currentAmplitude.toStringAsFixed(2)}',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 8),
                       LinearProgressIndicator(
-                        value: _currentAmplitude,
+                        value: _getAmplitudeProgress(),
                         backgroundColor: Colors.grey[300],
                         valueColor:
                             AlwaysStoppedAnimation<Color>(_getAmplitudeColor()),
