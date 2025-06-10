@@ -44,7 +44,7 @@ class _RecordingPageState extends State<RecordingPage> {
 
   final TextEditingController _fileNameController = TextEditingController();
 
-  RangeValues _amplitudeRange = const RangeValues(0.0, 1.0);
+  RangeValues _amplitudeRange = const RangeValues(0.0, 100.0);
 
   @override
   void initState() {
@@ -111,8 +111,8 @@ class _RecordingPageState extends State<RecordingPage> {
   Future<void> _updateAmplitudeRange() async {
     try {
       await _micStreamRecorderPlugin.configureRecording(
-        amplitudeMin: _amplitudeRange.start,
-        amplitudeMax: _amplitudeRange.end,
+        amplitudeMin: _amplitudeRange.start / 100.0,
+        amplitudeMax: _amplitudeRange.end / 100.0,
       );
     } catch (e) {
       _showError('Failed to update amplitude range: $e');
@@ -219,18 +219,25 @@ class _RecordingPageState extends State<RecordingPage> {
   }
 
   Color _getAmplitudeColor() {
-    final normalizedAmplitude = (_currentAmplitude - _amplitudeRange.start) /
-        (_amplitudeRange.end - _amplitudeRange.start);
-    if (normalizedAmplitude < 0.3) return Colors.green;
-    if (normalizedAmplitude < 0.7) return Colors.orange;
+    final progress = _getAmplitudeProgress();
+    if (progress < 0.3) return Colors.green;
+    if (progress < 0.7) return Colors.orange;
     return Colors.red;
   }
 
   double _getAmplitudeProgress() {
-    if (_amplitudeRange.end == _amplitudeRange.start) return 0.0;
-    return ((_currentAmplitude - _amplitudeRange.start) /
-            (_amplitudeRange.end - _amplitudeRange.start))
+    final minPercent = _amplitudeRange.start / 100.0;
+    final maxPercent = _amplitudeRange.end / 100.0;
+
+    if (maxPercent == minPercent) return 0.0;
+
+    final clampedAmplitude = _currentAmplitude.clamp(minPercent, maxPercent);
+    return ((clampedAmplitude - minPercent) / (maxPercent - minPercent))
         .clamp(0.0, 1.0);
+  }
+
+  String _getAmplitudeDisplayValue() {
+    return (_currentAmplitude * 100).toStringAsFixed(1);
   }
 
   @override
@@ -246,7 +253,7 @@ class _RecordingPageState extends State<RecordingPage> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: const Text('Mic Stream Recorder'),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
@@ -296,9 +303,9 @@ class _RecordingPageState extends State<RecordingPage> {
                     const SizedBox(height: 8),
                     RangeSlider(
                       values: _amplitudeRange,
-                      min: -100.0,
+                      min: 0.0,
                       max: 100.0,
-                      divisions: 200,
+                      divisions: 100,
                       labels: RangeLabels(
                         _amplitudeRange.start.toStringAsFixed(1),
                         _amplitudeRange.end.toStringAsFixed(1),
@@ -326,35 +333,35 @@ class _RecordingPageState extends State<RecordingPage> {
                               : () {
                                   setState(() {
                                     _amplitudeRange =
-                                        const RangeValues(0.0, 1.0);
-                                  });
-                                  _updateAmplitudeRange();
-                                },
-                          child: const Text('0-1'),
-                        ),
-                        TextButton(
-                          onPressed: _isRecording
-                              ? null
-                              : () {
-                                  setState(() {
-                                    _amplitudeRange =
-                                        const RangeValues(-1.0, 1.0);
-                                  });
-                                  _updateAmplitudeRange();
-                                },
-                          child: const Text('-1 to 1'),
-                        ),
-                        TextButton(
-                          onPressed: _isRecording
-                              ? null
-                              : () {
-                                  setState(() {
-                                    _amplitudeRange =
                                         const RangeValues(0.0, 100.0);
                                   });
                                   _updateAmplitudeRange();
                                 },
-                          child: const Text('0-100'),
+                          child: const Text('Full 0-100%'),
+                        ),
+                        TextButton(
+                          onPressed: _isRecording
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _amplitudeRange =
+                                        const RangeValues(20.0, 80.0);
+                                  });
+                                  _updateAmplitudeRange();
+                                },
+                          child: const Text('Mid 20-80%'),
+                        ),
+                        TextButton(
+                          onPressed: _isRecording
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _amplitudeRange =
+                                        const RangeValues(30.0, 70.0);
+                                  });
+                                  _updateAmplitudeRange();
+                                },
+                          child: const Text('Focus 30-70%'),
                         ),
                       ],
                     ),
@@ -379,7 +386,7 @@ class _RecordingPageState extends State<RecordingPage> {
                     // Amplitude meter
                     if (_isRecording) ...[
                       Text(
-                        'Audio Level: ${_currentAmplitude.toStringAsFixed(2)}',
+                        'Audio Level: ${_getAmplitudeDisplayValue()}%',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 8),
@@ -459,59 +466,58 @@ class _RecordingPageState extends State<RecordingPage> {
             ],
 
             // Recording files list
-            Expanded(
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Recording Files',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          IconButton(
-                            onPressed: _loadRecordingFiles,
-                            icon: const Icon(Icons.refresh),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: _recordingFiles.isEmpty
-                            ? const Center(
-                                child: Text('No recordings found'),
-                              )
-                            : ListView.builder(
-                                itemCount: _recordingFiles.length,
-                                itemBuilder: (context, index) {
-                                  final filePath = _recordingFiles[index];
-                                  final fileName = filePath.split('/').last;
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Recorded Files',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        IconButton(
+                          onPressed: _loadRecordingFiles,
+                          icon: const Icon(Icons.refresh),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _recordingFiles.isEmpty
+                        ? const Center(
+                            child: Text('No recordings found'),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: _recordingFiles.length,
+                            itemBuilder: (context, index) {
+                              final filePath = _recordingFiles[index];
+                              final fileName = filePath.split('/').last;
 
-                                  return ListTile(
-                                    leading: const Icon(Icons.audiotrack),
-                                    title: Text(fileName),
-                                    subtitle: Text(
-                                      'File: ${filePath.replaceAll(RegExp(r'.*/'), '')}',
-                                    ),
-                                    trailing: IconButton(
-                                      onPressed: _isPlaying
-                                          ? null
-                                          : () => _playRecording(filePath),
-                                      icon: const Icon(Icons.play_arrow),
-                                    ),
-                                  );
-                                },
-                              ),
-                      ),
-                    ],
-                  ),
+                              return ListTile(
+                                leading: const Icon(Icons.audiotrack),
+                                title: Text(fileName),
+                                subtitle: Text(
+                                  'File: ${filePath.replaceAll(RegExp(r'.*/'), '')}',
+                                ),
+                                trailing: IconButton(
+                                  onPressed: _isPlaying
+                                      ? null
+                                      : () => _playRecording(filePath),
+                                  icon: const Icon(Icons.play_arrow),
+                                ),
+                              );
+                            },
+                          ),
+                  ],
                 ),
               ),
             ),
+            const SizedBox(height: 16), // Bottom padding
           ],
         ),
       ),
