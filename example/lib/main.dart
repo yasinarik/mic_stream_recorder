@@ -189,12 +189,77 @@ class _RecordingPageState extends State<RecordingPage> {
     _updateAmplitudeRange();
   }
 
-  // Reusable UI components
-  Widget _buildCard({
-    required String title,
-    required Widget child,
-    Widget? trailingItem,
-  }) {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: const Text('Mic Stream Recorder'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            FileNameInputCard(
+              controller: _fileNameController,
+              isRecording: _isRecording,
+            ),
+            const SizedBox(height: 16),
+            AmplitudeRangeCard(
+              amplitudeRange: _amplitudeRange,
+              isRecording: _isRecording,
+              onRangeChanged: (values) =>
+                  setState(() => _amplitudeRange = values),
+              onRangeChangeEnd: (_) => _updateAmplitudeRange(),
+              onPresetSelected: _setAmplitudeRange,
+            ),
+            const SizedBox(height: 16),
+            RecordingControlsCard(
+              isRecording: _isRecording,
+              currentAmplitude: _currentAmplitude,
+              amplitudeProgress: _getAmplitudeProgress(_currentAmplitude),
+              amplitudeColor: _getAmplitudeColor(_currentAmplitude),
+              onStartRecording: _startRecording,
+              onStopRecording: _stopRecording,
+            ),
+            const SizedBox(height: 16),
+            if (_lastRecordingPath != null)
+              PlaybackControlsCard(
+                isPlaying: _isPlaying,
+                onPlay: () => _playRecording(_lastRecordingPath!),
+                onPause: _pausePlayback,
+                onStop: _stopPlayback,
+              ),
+            const SizedBox(height: 16),
+            RecordingFilesCard(
+              recordingFiles: _recordingFiles,
+              isPlaying: _isPlaying,
+              onRefresh: _loadRecordingFiles,
+              onPlayFile: _playRecording,
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Reusable card wrapper widget
+class CardWrapper extends StatelessWidget {
+  final String title;
+  final Widget child;
+  final Widget? trailingItem;
+
+  const CardWrapper({
+    super.key,
+    required this.title,
+    required this.child,
+    this.trailingItem,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -208,7 +273,7 @@ class _RecordingPageState extends State<RecordingPage> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const Spacer(),
-                if (trailingItem != null) trailingItem,
+                if (trailingItem != null) trailingItem!,
               ],
             ),
             const SizedBox(height: 16),
@@ -218,13 +283,26 @@ class _RecordingPageState extends State<RecordingPage> {
       ),
     );
   }
+}
 
-  Widget _buildFileNameInput() {
-    return _buildCard(
+// File name input widget
+class FileNameInputCard extends StatelessWidget {
+  final TextEditingController controller;
+  final bool isRecording;
+
+  const FileNameInputCard({
+    super.key,
+    required this.controller,
+    required this.isRecording,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CardWrapper(
       title: 'Custom Recording Name (Optional)',
       child: TextField(
-        controller: _fileNameController,
-        enabled: !_isRecording,
+        controller: controller,
+        enabled: !isRecording,
         decoration: const InputDecoration(
           hintText: 'Enter filename (without extension)',
           border: OutlineInputBorder(),
@@ -233,71 +311,132 @@ class _RecordingPageState extends State<RecordingPage> {
       ),
     );
   }
+}
 
-  Widget _buildAmplitudeRangeSlider() {
-    return _buildCard(
+// Amplitude range slider widget
+class AmplitudeRangeCard extends StatelessWidget {
+  final RangeValues amplitudeRange;
+  final bool isRecording;
+  final ValueChanged<RangeValues> onRangeChanged;
+  final ValueChanged<RangeValues> onRangeChangeEnd;
+  final Function(double, double) onPresetSelected;
+
+  const AmplitudeRangeCard({
+    super.key,
+    required this.amplitudeRange,
+    required this.isRecording,
+    required this.onRangeChanged,
+    required this.onRangeChangeEnd,
+    required this.onPresetSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CardWrapper(
       title: 'Amplitude Range',
       child: Column(
         children: [
           Text(
-            'Min: ${_amplitudeRange.start.toStringAsFixed(1)}% | Max: ${_amplitudeRange.end.toStringAsFixed(1)}%',
+            'Min: ${amplitudeRange.start.toStringAsFixed(1)}% | Max: ${amplitudeRange.end.toStringAsFixed(1)}%',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 8),
           RangeSlider(
-            values: _amplitudeRange,
+            values: amplitudeRange,
             min: 0.0,
             max: 100.0,
             divisions: 100,
             labels: RangeLabels(
-              '${_amplitudeRange.start.toStringAsFixed(1)}%',
-              '${_amplitudeRange.end.toStringAsFixed(1)}%',
+              '${amplitudeRange.start.toStringAsFixed(1)}%',
+              '${amplitudeRange.end.toStringAsFixed(1)}%',
             ),
-            onChanged: _isRecording
-                ? null
-                : (values) => setState(() => _amplitudeRange = values),
-            onChangeEnd: _isRecording ? null : (_) => _updateAmplitudeRange(),
+            onChanged: isRecording ? null : onRangeChanged,
+            onChangeEnd: isRecording ? null : onRangeChangeEnd,
           ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             children: [
-              _buildPresetButton(
-                  'Full 0-100%', () => _setAmplitudeRange(0.0, 100.0)),
-              _buildPresetButton(
-                  'Mid 20-80%', () => _setAmplitudeRange(20.0, 80.0)),
-              _buildPresetButton(
-                  'Focus 30-70%', () => _setAmplitudeRange(30.0, 70.0)),
+              PresetButton(
+                label: 'Full 0-100%',
+                isEnabled: !isRecording,
+                onPressed: () => onPresetSelected(0.0, 100.0),
+              ),
+              PresetButton(
+                label: 'Mid 20-80%',
+                isEnabled: !isRecording,
+                onPressed: () => onPresetSelected(20.0, 80.0),
+              ),
+              PresetButton(
+                label: 'Focus 30-70%',
+                isEnabled: !isRecording,
+                onPressed: () => onPresetSelected(30.0, 70.0),
+              ),
             ],
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildPresetButton(String label, VoidCallback onPressed) {
+// Preset button widget
+class PresetButton extends StatelessWidget {
+  final String label;
+  final bool isEnabled;
+  final VoidCallback onPressed;
+
+  const PresetButton({
+    super.key,
+    required this.label,
+    required this.isEnabled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return TextButton(
-      onPressed: _isRecording ? null : onPressed,
+      onPressed: isEnabled ? onPressed : null,
       child: Text(label),
     );
   }
+}
 
-  Widget _buildRecordingControls() {
-    return _buildCard(
+// Recording controls widget
+class RecordingControlsCard extends StatelessWidget {
+  final bool isRecording;
+  final double currentAmplitude;
+  final double amplitudeProgress;
+  final Color amplitudeColor;
+  final VoidCallback onStartRecording;
+  final VoidCallback onStopRecording;
+
+  const RecordingControlsCard({
+    super.key,
+    required this.isRecording,
+    required this.currentAmplitude,
+    required this.amplitudeProgress,
+    required this.amplitudeColor,
+    required this.onStartRecording,
+    required this.onStopRecording,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CardWrapper(
       title: 'Recording Controls',
       child: Column(
         children: [
-          if (_isRecording) ...[
+          if (isRecording) ...[
             Text(
-              'Audio Level: ${(_currentAmplitude * 100).toStringAsFixed(1)}%',
+              'Audio Level: ${(currentAmplitude * 100).toStringAsFixed(1)}%',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 8),
             LinearProgressIndicator(
-              value: _getAmplitudeProgress(_currentAmplitude),
+              value: amplitudeProgress,
               backgroundColor: Colors.grey[300],
-              valueColor: AlwaysStoppedAnimation<Color>(
-                  _getAmplitudeColor(_currentAmplitude)),
+              valueColor: AlwaysStoppedAnimation<Color>(amplitudeColor),
               minHeight: 8,
             ),
             const SizedBox(height: 16),
@@ -305,11 +444,11 @@ class _RecordingPageState extends State<RecordingPage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _isRecording ? _stopRecording : _startRecording,
-              icon: Icon(_isRecording ? Icons.stop : Icons.mic),
-              label: Text(_isRecording ? 'Stop Recording' : 'Start Recording'),
+              onPressed: isRecording ? onStopRecording : onStartRecording,
+              icon: Icon(isRecording ? Icons.stop : Icons.mic),
+              label: Text(isRecording ? 'Stop Recording' : 'Start Recording'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _isRecording ? Colors.red : Colors.blue,
+                backgroundColor: isRecording ? Colors.red : Colors.blue,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
@@ -319,106 +458,116 @@ class _RecordingPageState extends State<RecordingPage> {
       ),
     );
   }
+}
 
-  Widget _buildPlaybackControls() {
-    if (_lastRecordingPath == null) return const SizedBox.shrink();
+// Playback controls widget
+class PlaybackControlsCard extends StatelessWidget {
+  final bool isPlaying;
+  final VoidCallback onPlay;
+  final VoidCallback onPause;
+  final VoidCallback onStop;
 
-    return _buildCard(
+  const PlaybackControlsCard({
+    super.key,
+    required this.isPlaying,
+    required this.onPlay,
+    required this.onPause,
+    required this.onStop,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CardWrapper(
       title: 'Last Recording Playback',
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildPlaybackButton(
+          PlaybackButton(
             icon: Icons.play_arrow,
             label: 'Play',
-            onPressed:
-                _isPlaying ? null : () => _playRecording(_lastRecordingPath!),
+            onPressed: isPlaying ? null : onPlay,
           ),
-          _buildPlaybackButton(
+          PlaybackButton(
             icon: Icons.pause,
             label: 'Pause',
-            onPressed: _isPlaying ? _pausePlayback : null,
+            onPressed: isPlaying ? onPause : null,
           ),
-          _buildPlaybackButton(
+          PlaybackButton(
             icon: Icons.stop,
             label: 'Stop',
-            onPressed: _isPlaying ? _stopPlayback : null,
+            onPressed: isPlaying ? onStop : null,
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildPlaybackButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback? onPressed,
-  }) {
+// Playback button widget
+class PlaybackButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+
+  const PlaybackButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: onPressed,
       icon: Icon(icon),
       label: Text(label),
     );
   }
+}
 
-  Widget _buildFilesList() {
-    return _buildCard(
-      title: 'Recorded Files',
-      trailingItem: IconButton(
-        onPressed: _loadRecordingFiles,
-        icon: const Icon(Icons.refresh),
-      ),
-      child: Column(
-        children: [
-          _recordingFiles.isEmpty
-              ? const Center(child: Text('No recordings found'))
-              : ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _recordingFiles.length,
-                  itemBuilder: (context, index) {
-                    final filePath = _recordingFiles[index];
-                    final fileName = filePath.split('/').last;
-                    return ListTile(
-                      leading: const Icon(Icons.audiotrack),
-                      title: Text(fileName),
-                      trailing: IconButton(
-                        onPressed:
-                            _isPlaying ? null : () => _playRecording(filePath),
-                        icon: const Icon(Icons.play_arrow),
-                      ),
-                    );
-                  },
-                ),
-        ],
-      ),
-    );
-  }
+// Recording files list widget
+class RecordingFilesCard extends StatelessWidget {
+  final List<String> recordingFiles;
+  final bool isPlaying;
+  final VoidCallback onRefresh;
+  final Function(String) onPlayFile;
+
+  const RecordingFilesCard({
+    super.key,
+    required this.recordingFiles,
+    required this.isPlaying,
+    required this.onRefresh,
+    required this.onPlayFile,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: const Text('Mic Stream Recorder'),
+    return CardWrapper(
+      title: 'Recorded Files',
+      trailingItem: IconButton(
+        onPressed: onRefresh,
+        icon: const Icon(Icons.refresh),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            _buildFileNameInput(),
-            const SizedBox(height: 16),
-            _buildAmplitudeRangeSlider(),
-            const SizedBox(height: 16),
-            _buildRecordingControls(),
-            const SizedBox(height: 16),
-            _buildPlaybackControls(),
-            const SizedBox(height: 16),
-            _buildFilesList(),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
+      child: recordingFiles.isEmpty
+          ? const Center(child: Text('No recordings found'))
+          : ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: recordingFiles.length,
+              itemBuilder: (context, index) {
+                final filePath = recordingFiles[index];
+                final fileName = filePath.split('/').last;
+                return ListTile(
+                  leading: const Icon(Icons.audiotrack),
+                  title: Text(fileName),
+                  trailing: IconButton(
+                    onPressed: isPlaying ? null : () => onPlayFile(filePath),
+                    icon: const Icon(Icons.play_arrow),
+                  ),
+                );
+              },
+            ),
     );
   }
 }
