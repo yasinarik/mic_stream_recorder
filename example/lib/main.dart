@@ -77,7 +77,7 @@ class _RecordingPageState extends State<RecordingPage> {
         amplitudeMax: _amplitudeRange.end / 100.0,
       );
     } catch (e) {
-      _showMessage('Failed to update range: $e', isError: true);
+      _showMessage('Failed to update configuration: $e', isError: true);
     }
   }
 
