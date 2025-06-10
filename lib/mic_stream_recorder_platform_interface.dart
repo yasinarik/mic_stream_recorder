@@ -28,7 +28,7 @@ abstract class MicStreamRecorderPlatform extends PlatformInterface {
   }
 
   /// Start recording audio
-  Future<void> startRecording() {
+  Future<void> startRecording([String? filePath]) {
     throw UnimplementedError('startRecording() has not been implemented.');
   }
 
@@ -37,8 +37,8 @@ abstract class MicStreamRecorderPlatform extends PlatformInterface {
     throw UnimplementedError('stopRecording() has not been implemented.');
   }
 
-  /// Play the recorded audio file
-  Future<void> playRecording([String? filePath]) {
+  /// Play the specified audio file
+  Future<void> playRecording(String filePath) {
     throw UnimplementedError('playRecording() has not been implemented.');
   }
 

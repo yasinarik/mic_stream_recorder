@@ -7,14 +7,13 @@ A Flutter plugin for real-time microphone audio stream recording on iOS and Andr
 
 ## Features
 
-- 🎤 **Real-time microphone recording** with M4A/AAC format
-- 📊 **Live amplitude monitoring** for audio visualization
-- 📱 **Cross-platform support** (iOS & Android)
-- ⚙️ **Configurable settings** (sample rate, channels, quality, buffer size)
-- 🎵 **Playback controls** (play, pause, stop)
-- 🛡️ **Automatic permission handling** for microphone access
-- ⚡ **Low latency** real-time audio processing
-- 🎯 **Simple API** with comprehensive error handling
+- 🎤 **High-quality audio recording** in M4A format with AAC encoding
+- 📊 **Real-time amplitude monitoring** with normalized output (0.0-1.0)
+- 🔧 **Configurable recording settings** (sample rate, channels, buffer size, quality)
+- ▶️ **Audio playback controls** (play, pause, stop)
+- 📁 **Flexible file management** with custom file paths
+- 🔒 **Automatic permission handling** for microphone access
+- 🎯 **Cross-platform support** for iOS and Android
 
 ## Installation
 
@@ -31,196 +30,16 @@ Then run:
 flutter pub get
 ```
 
-## Quick Start
+## Platform Setup
 
-```dart
-import 'package:mic_stream_recorder/mic_stream_recorder.dart';
+### iOS
 
-final recorder = MicStreamRecorder();
+Add the following key to your `ios/Runner/Info.plist`:
 
-// Start recording
-await recorder.startRecording();
-
-// Listen to real-time amplitude
-recorder.amplitudeStream.listen((amplitude) {
-  print('Amplitude: ${(amplitude * 100).toInt()}%');
-});
-
-// Stop recording and get file path
-final filePath = await recorder.stopRecording();
-print('Recording saved: $filePath');
-
-// Play the recording
-await recorder.playRecording();
+```xml
+<key>NSMicrophoneUsageDescription</key>
+<string>This app needs access to the microphone to record audio</string>
 ```
-
-## Detailed Usage
-
-### Configuration
-
-Configure recording settings before starting:
-
-```dart
-// Configure with individual parameters
-await recorder.configureRecording(
-  sampleRate: 44100,     // 8000, 16000, 22050, 44100, 48000
-  channels: 1,           // 1 (mono) or 2 (stereo)
-  audioQuality: AudioQuality.high,  // min, low, medium, high, max
-  bufferSize: 1024,      // 128, 256, 512, 1024, 2048, 4096
-);
-
-// Or use RecordingConfig object
-const config = RecordingConfig(
-  sampleRate: 44100,
-  channels: 1,
-  audioQuality: AudioQuality.high,
-  bufferSize: 512,
-);
-await recorder.configureRecordingWithConfig(config);
-```
-
-### Recording Control
-
-```dart
-// Start recording (requests permission automatically)
-await recorder.startRecording();
-
-// Stop recording and get file path
-String? filePath = await recorder.stopRecording();
-
-// Check platform version
-String? version = await recorder.getPlatformVersion();
-```
-
-### Real-time Amplitude Monitoring
-
-Perfect for creating audio visualizations:
-
-```dart
-StreamSubscription? subscription;
-
-subscription = recorder.amplitudeStream.listen(
-  (double amplitude) {
-    // amplitude is normalized between 0.0 and 1.0
-    setState(() {
-      _currentAmplitude = amplitude;
-    });
-  },
-  onError: (error) => print('Amplitude error: $error'),
-);
-
-// Don't forget to cancel the subscription
-subscription?.cancel();
-```
-
-### Playback Control
-
-```dart
-// Play the most recent recording
-await recorder.playRecording();
-
-// Play a specific file
-await recorder.playRecording('/path/to/audio/file.m4a');
-
-// Pause playback
-await recorder.pausePlayback();
-
-// Stop playback
-await recorder.stopPlayback();
-
-// Check if currently playing
-bool isPlaying = await recorder.isPlaying();
-```
-
-### Complete Example
-
-```dart
-class RecordingWidget extends StatefulWidget {
-  @override
-  _RecordingWidgetState createState() => _RecordingWidgetState();
-}
-
-class _RecordingWidgetState extends State<RecordingWidget> {
-  final _recorder = MicStreamRecorder();
-  bool _isRecording = false;
-  double _amplitude = 0.0;
-  String? _recordingPath;
-  StreamSubscription<double>? _amplitudeSubscription;
-
-  @override
-  void dispose() {
-    _amplitudeSubscription?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _startRecording() async {
-    try {
-      await _recorder.configureRecording(
-        sampleRate: 44100,
-        audioQuality: AudioQuality.high,
-      );
-      
-      await _recorder.startRecording();
-      
-      _amplitudeSubscription = _recorder.amplitudeStream.listen(
-        (amplitude) => setState(() => _amplitude = amplitude),
-      );
-      
-      setState(() => _isRecording = true);
-    } catch (e) {
-      print('Recording failed: $e');
-    }
-  }
-
-  Future<void> _stopRecording() async {
-    try {
-      final path = await _recorder.stopRecording();
-      _amplitudeSubscription?.cancel();
-      
-      setState(() {
-        _isRecording = false;
-        _amplitude = 0.0;
-        _recordingPath = path;
-      });
-    } catch (e) {
-      print('Stop recording failed: $e');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Amplitude visualization
-        if (_isRecording)
-          LinearProgressIndicator(
-            value: _amplitude,
-            backgroundColor: Colors.grey[300],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              _amplitude > 0.7 ? Colors.red :
-              _amplitude > 0.3 ? Colors.orange : Colors.green,
-            ),
-          ),
-        
-        // Recording button
-        ElevatedButton(
-          onPressed: _isRecording ? _stopRecording : _startRecording,
-          child: Text(_isRecording ? 'Stop Recording' : 'Start Recording'),
-        ),
-        
-        // Playback button
-        if (_recordingPath != null)
-          ElevatedButton(
-            onPressed: () => _recorder.playRecording(_recordingPath),
-            child: Text('Play Recording'),
-          ),
-      ],
-    );
-  }
-}
-```
-
-## Permissions
 
 ### Android
 
@@ -230,68 +49,375 @@ Add the following permission to your `android/app/src/main/AndroidManifest.xml`:
 <uses-permission android:name="android.permission.RECORD_AUDIO" />
 ```
 
-### iOS
+## Quick Start
 
-Add the following to your `ios/Runner/Info.plist`:
+```dart
+import 'package:mic_stream_recorder/mic_stream_recorder.dart';
 
-```xml
-<key>NSMicrophoneUsageDescription</key>
-<string>This app needs access to microphone to record audio.</string>
+class MyRecorder {
+  final _recorder = MicStreamRecorder();
+
+  Future<void> startRecording() async {
+    // Start recording to default location
+    await _recorder.startRecording();
+    
+    // Or start recording to custom location
+    await _recorder.startRecording('/path/to/my_recording.m4a');
+  }
+
+  Future<void> stopRecording() async {
+    final recordingPath = await _recorder.stopRecording();
+    print('Recording saved: $recordingPath');
+  }
+
+  Future<void> playRecording(String filePath) async {
+    await _recorder.playRecording(filePath);
+  }
+}
 ```
 
 ## API Reference
 
-### MicStreamRecorder
+### Recording Methods
 
-| Method | Description | Returns |
-|--------|-------------|---------|
-| `startRecording()` | Start microphone recording | `Future<void>` |
-| `stopRecording()` | Stop recording and return file path | `Future<String?>` |
-| `playRecording([filePath])` | Play recorded audio | `Future<void>` |
-| `pausePlayback()` | Pause audio playback | `Future<void>` |
-| `stopPlayback()` | Stop audio playback | `Future<void>` |
-| `isPlaying()` | Check if audio is playing | `Future<bool>` |
-| `configureRecording({...})` | Configure recording settings | `Future<void>` |
-| `getPlatformVersion()` | Get platform version | `Future<String?>` |
+#### `startRecording([String? filePath])`
+Starts audio recording from the microphone.
 
-| Property | Description | Type |
-|----------|-------------|------|
-| `amplitudeStream` | Real-time amplitude data | `Stream<double>` |
+**Parameters:**
+- `filePath` (optional): Custom file path for the recording. If not provided, uses default location.
 
-### AudioQuality
+**Example:**
+```dart
+// Record to default location
+await recorder.startRecording();
 
-- `AudioQuality.min` - 32 kbps
-- `AudioQuality.low` - 64 kbps  
-- `AudioQuality.medium` - 96 kbps
-- `AudioQuality.high` - 128 kbps
-- `AudioQuality.max` - 192 kbps
+// Record to custom location
+await recorder.startRecording('/path/to/my_recording.m4a');
+```
 
-## Platform Support
+#### `stopRecording()`
+Stops the current recording and returns the file path.
 
-| Platform | Recording | Playback | Amplitude | Format |
-|----------|-----------|----------|-----------|---------|
-| Android  | ✅        | ✅       | ✅        | M4A/AAC |
-| iOS      | ✅        | ✅       | ✅        | M4A/AAC |
+**Returns:** `Future<String?>` - Path to the recorded file
+
+**Example:**
+```dart
+final recordingPath = await recorder.stopRecording();
+```
+
+### Playback Methods
+
+#### `playRecording(String filePath)`
+Plays the specified audio file. The file path is required and validated before playback.
+
+**Parameters:**
+- `filePath`: Path to the audio file to play
+
+**Throws:**
+- `ArgumentError`: If the file path is empty
+- `FileSystemException`: If the file doesn't exist
+
+**Example:**
+```dart
+try {
+  await recorder.playRecording('/path/to/recording.m4a');
+} catch (e) {
+  print('Playback failed: $e');
+}
+```
+
+#### `pausePlayback()`
+Pauses the current audio playback.
+
+#### `stopPlayback()`
+Stops the current audio playback.
+
+#### `isPlaying()`
+Returns whether audio is currently playing.
+
+**Returns:** `Future<bool>`
+
+### Configuration Methods
+
+#### `configureRecording({...})`
+Configure recording settings before starting recording.
+
+**Parameters:**
+- `sampleRate` (double?): Audio sample rate (8000, 16000, 22050, 44100, 48000 Hz)
+- `channels` (int?): Number of audio channels (1 or 2)
+- `bufferSize` (int?): Audio buffer size (128, 256, 512, 1024)
+- `audioQuality` (AudioQuality?): Recording quality (min, low, medium, high, max)
+
+**Example:**
+```dart
+await recorder.configureRecording(
+  sampleRate: 44100,
+  channels: 1,
+  audioQuality: AudioQuality.high,
+);
+```
+
+### Real-time Monitoring
+
+#### `amplitudeStream`
+Stream of real-time amplitude values (0.0 to 1.0) during recording.
+
+**Example:**
+```dart
+recorder.amplitudeStream.listen((amplitude) {
+  print('Current amplitude: ${(amplitude * 100).toStringAsFixed(1)}%');
+  // Update UI amplitude meter
+});
+```
+
+## Complete Example
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:mic_stream_recorder/mic_stream_recorder.dart';
+import 'package:path_provider/path_provider.dart';
+
+class RecordingPage extends StatefulWidget {
+  @override
+  _RecordingPageState createState() => _RecordingPageState();
+}
+
+class _RecordingPageState extends State<RecordingPage> {
+  final _recorder = MicStreamRecorder();
+  bool _isRecording = false;
+  bool _isPlaying = false;
+  double _amplitude = 0.0;
+  String? _lastRecordingPath;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Listen to amplitude changes
+    _recorder.amplitudeStream.listen((amplitude) {
+      setState(() => _amplitude = amplitude);
+    });
+  }
+
+  Future<void> _startRecording() async {
+    try {
+      // Optional: Configure recording settings
+      await _recorder.configureRecording(
+        sampleRate: 44100,
+        channels: 1,
+        audioQuality: AudioQuality.high,
+      );
+
+      // Start recording with custom filename
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = '${directory.path}/my_recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      
+      await _recorder.startRecording(filePath);
+      setState(() => _isRecording = true);
+    } catch (e) {
+      print('Failed to start recording: $e');
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    try {
+      final path = await _recorder.stopRecording();
+      setState(() {
+        _isRecording = false;
+        _lastRecordingPath = path;
+        _amplitude = 0.0;
+      });
+      print('Recording saved: $path');
+    } catch (e) {
+      print('Failed to stop recording: $e');
+    }
+  }
+
+  Future<void> _playRecording() async {
+    if (_lastRecordingPath == null) return;
+    
+    try {
+      await _recorder.playRecording(_lastRecordingPath!);
+      setState(() => _isPlaying = true);
+      
+      // Check if playback is still active
+      _checkPlaybackStatus();
+    } catch (e) {
+      print('Failed to play recording: $e');
+    }
+  }
+
+  void _checkPlaybackStatus() async {
+    while (_isPlaying) {
+      await Future.delayed(Duration(milliseconds: 500));
+      final isPlaying = await _recorder.isPlaying();
+      if (!isPlaying) {
+        setState(() => _isPlaying = false);
+        break;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Mic Stream Recorder')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Amplitude meter
+            if (_isRecording) ...[
+              Text('Recording... ${(_amplitude * 100).toStringAsFixed(1)}%'),
+              LinearProgressIndicator(value: _amplitude),
+              SizedBox(height: 20),
+            ],
+            
+            // Recording controls
+            ElevatedButton.icon(
+              onPressed: _isRecording ? _stopRecording : _startRecording,
+              icon: Icon(_isRecording ? Icons.stop : Icons.mic),
+              label: Text(_isRecording ? 'Stop Recording' : 'Start Recording'),
+            ),
+            
+            SizedBox(height: 20),
+            
+            // Playback controls
+            if (_lastRecordingPath != null) ...[
+              ElevatedButton.icon(
+                onPressed: _isPlaying ? null : _playRecording,
+                icon: Icon(Icons.play_arrow),
+                label: Text('Play Recording'),
+              ),
+              if (_isPlaying) ...[
+                SizedBox(height: 10),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    await _recorder.pausePlayback();
+                    setState(() => _isPlaying = false);
+                  },
+                  icon: Icon(Icons.pause),
+                  label: Text('Pause'),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+## Configuration Options
+
+### AudioQuality Enum
+- `AudioQuality.min` - Minimum quality (64 kbps)
+- `AudioQuality.low` - Low quality (96 kbps)
+- `AudioQuality.medium` - Medium quality (128 kbps)
+- `AudioQuality.high` - High quality (256 kbps)
+- `AudioQuality.max` - Maximum quality (320 kbps)
+
+### Sample Rates
+Supported sample rates: 8000, 16000, 22050, 44100, 48000 Hz
+
+### Buffer Sizes
+Supported buffer sizes: 128, 256, 512, 1024 samples
 
 ## Technical Implementation
 
-- **iOS**: Uses `AVAudioEngine` for real-time processing and `AVAudioRecorder` for file recording
-- **Android**: Uses `MediaRecorder` for recording and `AudioRecord` for amplitude monitoring
-- **Format**: M4A containers with AAC encoding for optimal quality and file size
-- **Threading**: Background processing for amplitude calculation with main thread updates
-- **Memory**: Efficient buffer management and automatic resource cleanup
+### Audio Format
+- **Container**: M4A (MPEG-4 Audio)
+- **Codec**: AAC (Advanced Audio Coding)
+- **Quality**: Configurable bitrate encoding
+
+### Platform-Specific Details
+
+#### iOS Implementation
+- Uses `AVAudioEngine` for real-time amplitude monitoring
+- Uses `AVAudioRecorder` for high-quality file recording
+- Uses `AVAudioPlayer` for audio playback
+- Automatic microphone permission handling
+
+#### Android Implementation
+- Uses `MediaRecorder` for audio recording
+- Uses `AudioRecord` for real-time amplitude monitoring
+- Uses `MediaPlayer` for audio playback
+- Runtime permission handling with activity lifecycle integration
+
+## Error Handling
+
+The plugin provides comprehensive error handling:
+
+```dart
+try {
+  await recorder.startRecording('/custom/path/recording.m4a');
+} catch (e) {
+  if (e is PlatformException) {
+    switch (e.code) {
+      case 'PERMISSION_DENIED':
+        print('Microphone permission denied');
+        break;
+      case 'ALREADY_RECORDING':
+        print('Recording is already in progress');
+        break;
+      default:
+        print('Recording error: ${e.message}');
+    }
+  }
+}
+
+try {
+  await recorder.playRecording('/path/to/recording.m4a');
+} catch (e) {
+  if (e is FileSystemException) {
+    print('Audio file not found: ${e.path}');
+  } else if (e is ArgumentError) {
+    print('Invalid file path: ${e.message}');
+  }
+}
+```
+
+## File Management Best Practices
+
+### Recording File Paths
+```dart
+import 'package:path_provider/path_provider.dart';
+
+// Use app documents directory
+final directory = await getApplicationDocumentsDirectory();
+final filePath = '${directory.path}/recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
+await recorder.startRecording(filePath);
+
+// Use temporary directory
+final tempDir = await getTemporaryDirectory();
+final tempPath = '${tempDir.path}/temp_recording.m4a';
+await recorder.startRecording(tempPath);
+```
+
+### File Validation
+```dart
+Future<void> playRecordingIfExists(String filePath) async {
+  final file = File(filePath);
+  if (await file.exists()) {
+    await recorder.playRecording(filePath);
+  } else {
+    print('Recording file does not exist');
+  }
+}
+```
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Issues
-
-Please file any issues, bugs, or feature requests in the [GitHub repository](https://github.com/yasinarik/mic_stream_recorder/issues).
+Contributions are welcome! Please read our contributing guidelines and submit pull requests to our repository.
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+For issues, feature requests, or questions, please visit our [GitHub repository](https://github.com/yasinarik/mic_stream_recorder).
 
 ## Author
 

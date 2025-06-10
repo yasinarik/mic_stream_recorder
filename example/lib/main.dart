@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
-
-import 'package:flutter/services.dart';
 import 'package:mic_stream_recorder/mic_stream_recorder.dart';
+import 'package:path_provider/path_provider.dart';
 
 void main() {
   runApp(const MyApp());
@@ -14,9 +12,10 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Mic Stream Recorder',
+      title: 'Mic Stream Recorder Demo',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
       ),
       home: const RecordingPage(),
     );
@@ -31,121 +30,131 @@ class RecordingPage extends StatefulWidget {
 }
 
 class _RecordingPageState extends State<RecordingPage> {
-  String _platformVersion = 'Unknown';
   final _micStreamRecorderPlugin = MicStreamRecorder();
 
   bool _isRecording = false;
   bool _isPlaying = false;
   double _currentAmplitude = 0.0;
-  String? _recordedFilePath;
-  StreamSubscription<double>? _amplitudeSubscription;
+  String? _lastRecordingPath;
+  List<String> _recordingFiles = [];
+  final TextEditingController _fileNameController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    initPlatformState();
+    _setupAmplitudeListener();
+    _loadRecordingFiles();
   }
 
-  @override
-  void dispose() {
-    _amplitudeSubscription?.cancel();
-    super.dispose();
-  }
-
-  // Platform messages are asynchronous, so we initialize in an async method.
-  Future<void> initPlatformState() async {
-    String platformVersion;
-    // Platform messages may fail, so we use a try/catch PlatformException.
-    // We also handle the message potentially returning null.
-    try {
-      platformVersion = await _micStreamRecorderPlugin.getPlatformVersion() ??
-          'Unknown platform version';
-    } on PlatformException {
-      platformVersion = 'Failed to get platform version.';
-    }
-
-    // If the widget was removed from the tree while the asynchronous platform
-    // message was in flight, we want to discard the reply rather than calling
-    // setState to update our non-existent appearance.
-    if (!mounted) return;
-
-    setState(() {
-      _platformVersion = platformVersion;
-    });
-  }
-
-  Future<void> _startRecording() async {
-    try {
-      // Configure recording settings (optional)
-      await _micStreamRecorderPlugin.configureRecording(
-        sampleRate: 44100,
-        channels: 1,
-        audioQuality: AudioQuality.high,
-      );
-
-      // Start recording
-      await _micStreamRecorderPlugin.startRecording();
-
-      // Start listening to amplitude changes
-      _amplitudeSubscription =
-          _micStreamRecorderPlugin.amplitudeStream.listen((amplitude) {
+  void _setupAmplitudeListener() {
+    _micStreamRecorderPlugin.amplitudeStream.listen((amplitude) {
+      if (mounted) {
         setState(() {
           _currentAmplitude = amplitude;
         });
-      });
+      }
+    });
+  }
+
+  Future<void> _loadRecordingFiles() async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final files = directory
+          .listSync()
+          .where((file) => file.path.endsWith('.m4a'))
+          .map((file) => file.path)
+          .toList();
 
       setState(() {
-        _isRecording = true;
-        _recordedFilePath = null;
+        _recordingFiles = files;
       });
+    } catch (e) {
+      _showError('Failed to load recording files: $e');
+    }
+  }
+
+  Future<String> _getCustomFilePath(String fileName) async {
+    final directory = await getApplicationDocumentsDirectory();
+    return '${directory.path}/$fileName.m4a';
+  }
+
+  void _showError(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _showSuccess(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  Future<void> _startRecording() async {
+    if (_isRecording) return;
+
+    try {
+      String? customPath;
+      if (_fileNameController.text.isNotEmpty) {
+        customPath = await _getCustomFilePath(_fileNameController.text);
+      }
+
+      await _micStreamRecorderPlugin.startRecording(customPath);
+      setState(() {
+        _isRecording = true;
+      });
+      _showSuccess(customPath != null
+          ? 'Started recording to: ${_fileNameController.text}.m4a'
+          : 'Started recording to default location');
     } catch (e) {
       _showError('Failed to start recording: $e');
     }
   }
 
   Future<void> _stopRecording() async {
-    try {
-      final filePath = await _micStreamRecorderPlugin.stopRecording();
-      _amplitudeSubscription?.cancel();
+    if (!_isRecording) return;
 
+    try {
+      final recordingPath = await _micStreamRecorderPlugin.stopRecording();
       setState(() {
         _isRecording = false;
+        _lastRecordingPath = recordingPath;
         _currentAmplitude = 0.0;
-        _recordedFilePath = filePath;
       });
 
-      if (filePath != null) {
-        _showMessage('Recording saved to: $filePath');
-      }
+      // Clear the file name input
+      _fileNameController.clear();
+
+      // Reload the file list
+      await _loadRecordingFiles();
+
+      _showSuccess(
+          'Recording saved: ${recordingPath?.split('/').last ?? 'Unknown'}');
     } catch (e) {
       _showError('Failed to stop recording: $e');
     }
   }
 
-  Future<void> _playRecording() async {
-    if (_recordedFilePath == null) {
-      _showError('No recording available to play');
-      return;
-    }
-
+  Future<void> _playRecording(String filePath) async {
     try {
-      await _micStreamRecorderPlugin.playRecording(_recordedFilePath);
+      await _micStreamRecorderPlugin.playRecording(filePath);
       setState(() {
         _isPlaying = true;
       });
+      _showSuccess('Playing: ${filePath.split('/').last}');
 
       // Check playing status periodically
-      Timer.periodic(const Duration(milliseconds: 500), (timer) async {
-        final isPlaying = await _micStreamRecorderPlugin.isPlaying();
-        if (!isPlaying) {
-          timer.cancel();
-          if (mounted) {
-            setState(() {
-              _isPlaying = false;
-            });
-          }
-        }
-      });
+      _checkPlayingStatus();
     } catch (e) {
       _showError('Failed to play recording: $e');
     }
@@ -157,6 +166,7 @@ class _RecordingPageState extends State<RecordingPage> {
       setState(() {
         _isPlaying = false;
       });
+      _showSuccess('Playback paused');
     } catch (e) {
       _showError('Failed to pause playback: $e');
     }
@@ -168,156 +178,226 @@ class _RecordingPageState extends State<RecordingPage> {
       setState(() {
         _isPlaying = false;
       });
+      _showSuccess('Playback stopped');
     } catch (e) {
       _showError('Failed to stop playback: $e');
     }
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
+  void _checkPlayingStatus() async {
+    while (_isPlaying) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        final isPlaying = await _micStreamRecorderPlugin.isPlaying();
+        if (!isPlaying && _isPlaying) {
+          setState(() {
+            _isPlaying = false;
+          });
+          _showSuccess('Playback completed');
+          break;
+        }
+      }
+    }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+  Color _getAmplitudeColor() {
+    if (_currentAmplitude < 0.3) return Colors.green;
+    if (_currentAmplitude < 0.7) return Colors.orange;
+    return Colors.red;
+  }
+
+  @override
+  void dispose() {
+    _fileNameController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: const Text('Mic Stream Recorder'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              'Running on: $_platformVersion',
-              style: Theme.of(context).textTheme.bodyLarge,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 30),
-
-            // Amplitude Meter
-            if (_isRecording) ...[
-              Text(
-                'Recording...',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
+            // File name input
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Custom Recording Name (Optional)',
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                height: 20,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(10),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _fileNameController,
+                      enabled: !_isRecording,
+                      decoration: const InputDecoration(
+                        hintText: 'Enter filename (without extension)',
+                        border: OutlineInputBorder(),
+                        suffixText: '.m4a',
+                      ),
+                    ),
+                  ],
                 ),
-                child: LinearProgressIndicator(
-                  value: _currentAmplitude,
-                  backgroundColor: Colors.grey[300],
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    _currentAmplitude > 0.7
-                        ? Colors.red
-                        : _currentAmplitude > 0.3
-                            ? Colors.orange
-                            : Colors.green,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Recording controls
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    Text(
+                      'Recording Controls',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Amplitude meter
+                    if (_isRecording) ...[
+                      Text(
+                        'Audio Level',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      LinearProgressIndicator(
+                        value: _currentAmplitude,
+                        backgroundColor: Colors.grey[300],
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(_getAmplitudeColor()),
+                        minHeight: 8,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Record button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed:
+                            _isRecording ? _stopRecording : _startRecording,
+                        icon: Icon(_isRecording ? Icons.stop : Icons.mic),
+                        label: Text(_isRecording
+                            ? 'Stop Recording'
+                            : 'Start Recording'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              _isRecording ? Colors.red : Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Playback controls
+            if (_lastRecordingPath != null) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Last Recording Playback',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: _isPlaying
+                                ? null
+                                : () => _playRecording(_lastRecordingPath!),
+                            icon: const Icon(Icons.play_arrow),
+                            label: const Text('Play'),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: _isPlaying ? _pausePlayback : null,
+                            icon: const Icon(Icons.pause),
+                            label: const Text('Pause'),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: _isPlaying ? _stopPlayback : null,
+                            icon: const Icon(Icons.stop),
+                            label: const Text('Stop'),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Amplitude: ${(_currentAmplitude * 100).toStringAsFixed(1)}%',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 16),
             ],
 
-            // Recording Controls
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _isRecording ? _stopRecording : _startRecording,
-                  icon: Icon(_isRecording ? Icons.stop : Icons.mic),
-                  label: Text(_isRecording ? 'Stop' : 'Record'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _isRecording ? Colors.red : Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
+            // Recording files list
+            Expanded(
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Recording Files',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          IconButton(
+                            onPressed: _loadRecordingFiles,
+                            icon: const Icon(Icons.refresh),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: _recordingFiles.isEmpty
+                            ? const Center(
+                                child: Text('No recordings found'),
+                              )
+                            : ListView.builder(
+                                itemCount: _recordingFiles.length,
+                                itemBuilder: (context, index) {
+                                  final filePath = _recordingFiles[index];
+                                  final fileName = filePath.split('/').last;
+
+                                  return ListTile(
+                                    leading: const Icon(Icons.audiotrack),
+                                    title: Text(fileName),
+                                    subtitle: Text(
+                                      'File: ${filePath.replaceAll(RegExp(r'.*/'), '')}',
+                                    ),
+                                    trailing: IconButton(
+                                      onPressed: _isPlaying
+                                          ? null
+                                          : () => _playRecording(filePath),
+                                      icon: const Icon(Icons.play_arrow),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
-
-            const SizedBox(height: 30),
-
-            // Playback Controls
-            if (_recordedFilePath != null) ...[
-              const Divider(),
-              const SizedBox(height: 16),
-              Text(
-                'Playback Controls',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: _isPlaying ? null : _playRecording,
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Play'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: _isPlaying ? _pausePlayback : null,
-                    icon: const Icon(Icons.pause),
-                    label: const Text('Pause'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: _isPlaying ? _stopPlayback : null,
-                    icon: const Icon(Icons.stop),
-                    label: const Text('Stop'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              if (_isPlaying)
-                const Text(
-                  'Playing...',
-                  style: TextStyle(
-                    color: Colors.green,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-            ],
           ],
         ),
       ),

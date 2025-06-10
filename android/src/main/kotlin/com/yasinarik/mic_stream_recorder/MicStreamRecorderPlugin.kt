@@ -88,6 +88,10 @@ class MicStreamRecorderPlugin: FlutterPlugin, MethodCallHandler, ActivityAware,
     private var pendingResult: Result? = null
     private val PERMISSION_REQUEST_CODE = 1001
 
+    private var amplitudeMonitoringHandler: Handler? = null
+    private var isAmplitudeMonitoring = false
+    private var customFilePath: String? = null
+
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         context = flutterPluginBinding.applicationContext
         
@@ -127,13 +131,26 @@ class MicStreamRecorderPlugin: FlutterPlugin, MethodCallHandler, ActivityAware,
 
     override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: Result) {
         when (call.method) {
-            "start" -> startRecording(result)
-            "stop" -> stopRecording(result)
-            "play" -> playRecording(call.arguments as? String, result)
+            "start" -> {
+                customFilePath = call.arguments as? String
+                startRecording(result)
+            }
+            "stop" -> {
+                val filePath = stopRecording()
+                result.success(filePath)
+            }
+            "play" -> {
+                val filePath = call.arguments as? String
+                if (filePath.isNullOrEmpty()) {
+                    result.error("MISSING_ARGUMENT", "File path is required for playback", null)
+                } else {
+                    playRecording(filePath, result)
+                }
+            }
             "pausePlayback" -> pausePlayback(result)
             "stopPlayback" -> stopPlayback(result)
             "isPlaying" -> result.success(mediaPlayer?.isPlaying ?: false)
-            "configureRecording" -> configureRecording(call.arguments as? Map<String, Any>, result)
+            "configureRecording" -> handleConfigureRecording(call, result)
             "getPlatformVersion" -> result.success("Android ${Build.VERSION.RELEASE}")
             else -> result.notImplemented()
         }
@@ -173,10 +190,9 @@ class MicStreamRecorderPlugin: FlutterPlugin, MethodCallHandler, ActivityAware,
         }
     }
 
-    private fun stopRecording(result: Result? = null) {
+    private fun stopRecording(): String? {
         if (!isRecording) {
-            result?.error("NOT_RECORDING", "No recording in progress", null)
-            return
+            return null
         }
 
         try {
@@ -189,10 +205,10 @@ class MicStreamRecorderPlugin: FlutterPlugin, MethodCallHandler, ActivityAware,
             stopMonitoring()
             isRecording = false
             
-            val filePath = currentRecordingFile?.absolutePath
-            result?.success(filePath)
+            val filePath = getFilePath()
+            return filePath
         } catch (e: Exception) {
-            result?.error("STOP_ERROR", "Failed to stop recording: ${e.message}", null)
+            return null
         }
     }
 
@@ -209,7 +225,7 @@ class MicStreamRecorderPlugin: FlutterPlugin, MethodCallHandler, ActivityAware,
             setAudioSamplingRate(config.sampleRate)
             setAudioChannels(config.channels)
             setAudioEncodingBitRate(config.audioQuality.bitRate)
-            setOutputFile(currentRecordingFile!!.absolutePath)
+            setOutputFile(getFilePath())
             
             prepare()
             start()
@@ -310,15 +326,11 @@ class MicStreamRecorderPlugin: FlutterPlugin, MethodCallHandler, ActivityAware,
 
     // MARK: - Playback Methods
 
-    private fun playRecording(filePath: String?, result: Result) {
-        val fileToPlay = if (filePath != null) {
-            File(filePath)
-        } else {
-            currentRecordingFile
-        }
+    private fun playRecording(filePath: String, result: Result) {
+        val fileToPlay = File(filePath)
 
-        if (fileToPlay == null || !fileToPlay.exists()) {
-            result.error("FILE_NOT_FOUND", "Recording file not found", null)
+        if (!fileToPlay.exists()) {
+            result.error("FILE_NOT_FOUND", "Audio file does not exist at ${fileToPlay.absolutePath}", null)
             return
         }
 
@@ -365,41 +377,43 @@ class MicStreamRecorderPlugin: FlutterPlugin, MethodCallHandler, ActivityAware,
 
     // MARK: - Configuration
 
-    private fun configureRecording(args: Map<String, Any>?, result: Result) {
-        if (args == null) {
+    private fun handleConfigureRecording(call: MethodCall, result: Result) {
+        if (call.arguments == null) {
             result.error("INVALID_ARGUMENTS", "Configuration arguments are required", null)
             return
         }
 
         try {
-            args["sampleRate"]?.let { 
-                val sampleRate = (it as? Number)?.toInt() ?: config.sampleRate
-                if (isValidSampleRate(sampleRate)) {
-                    config.sampleRate = sampleRate
+            call.arguments?.let { args ->
+                args["sampleRate"]?.let { 
+                    val sampleRate = (it as? Number)?.toInt() ?: config.sampleRate
+                    if (isValidSampleRate(sampleRate)) {
+                        config.sampleRate = sampleRate
+                    }
                 }
-            }
 
-            args["channels"]?.let {
-                val channels = (it as? Number)?.toInt() ?: config.channels
-                config.channels = maxOf(1, minOf(2, channels)) // Clamp to 1-2
-            }
-
-            args["bufferSize"]?.let {
-                val bufferSize = (it as? Number)?.toInt() ?: config.bufferSize
-                if (isValidBufferSize(bufferSize)) {
-                    config.bufferSize = bufferSize
+                args["channels"]?.let {
+                    val channels = (it as? Number)?.toInt() ?: config.channels
+                    config.channels = maxOf(1, minOf(2, channels)) // Clamp to 1-2
                 }
-            }
 
-            args["audioQuality"]?.let {
-                val qualityIndex = (it as? Number)?.toInt() ?: 3
-                config.audioQuality = when (qualityIndex) {
-                    0 -> RecordingConfig.AudioQuality.MIN
-                    1 -> RecordingConfig.AudioQuality.LOW
-                    2 -> RecordingConfig.AudioQuality.MEDIUM
-                    3 -> RecordingConfig.AudioQuality.HIGH
-                    4 -> RecordingConfig.AudioQuality.MAX
-                    else -> RecordingConfig.AudioQuality.HIGH
+                args["bufferSize"]?.let {
+                    val bufferSize = (it as? Number)?.toInt() ?: config.bufferSize
+                    if (isValidBufferSize(bufferSize)) {
+                        config.bufferSize = bufferSize
+                    }
+                }
+
+                args["audioQuality"]?.let {
+                    val qualityIndex = (it as? Number)?.toInt() ?: 3
+                    config.audioQuality = when (qualityIndex) {
+                        0 -> RecordingConfig.AudioQuality.MIN
+                        1 -> RecordingConfig.AudioQuality.LOW
+                        2 -> RecordingConfig.AudioQuality.MEDIUM
+                        3 -> RecordingConfig.AudioQuality.HIGH
+                        4 -> RecordingConfig.AudioQuality.MAX
+                        else -> RecordingConfig.AudioQuality.HIGH
+                    }
                 }
             }
 
@@ -463,5 +477,9 @@ class MicStreamRecorderPlugin: FlutterPlugin, MethodCallHandler, ActivityAware,
             return true
         }
         return false
+    }
+
+    private fun getFilePath(): String {
+        return customFilePath ?: File(context.cacheDir, "mic_stream_recording.m4a").absolutePath
     }
 } 

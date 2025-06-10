@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'mic_stream_recorder_platform_interface.dart';
 
 /// Audio quality options for recording
@@ -42,11 +43,20 @@ class MicStreamRecorder {
 
   /// Start recording audio from the microphone
   ///
-  /// This will request microphone permissions if not already granted
-  /// and start recording audio with the current configuration.
+  /// Optionally provide a [filePath] to specify where to save the recording.
+  /// If no [filePath] is provided, a default location will be used.
   /// Audio will be recorded in M4A format with AAC encoding.
-  Future<void> startRecording() {
-    return MicStreamRecorderPlatform.instance.startRecording();
+  ///
+  /// Example:
+  /// ```dart
+  /// // Record to default location
+  /// await recorder.startRecording();
+  ///
+  /// // Record to specific file
+  /// await recorder.startRecording('/path/to/my_recording.m4a');
+  /// ```
+  Future<void> startRecording([String? filePath]) {
+    return MicStreamRecorderPlatform.instance.startRecording(filePath);
   }
 
   /// Stop recording audio
@@ -56,11 +66,28 @@ class MicStreamRecorder {
     return MicStreamRecorderPlatform.instance.stopRecording();
   }
 
-  /// Play the recorded audio file
+  /// Play the specified audio file
   ///
-  /// If [filePath] is provided, plays that specific file.
-  /// Otherwise, plays the most recently recorded file.
-  Future<void> playRecording([String? filePath]) {
+  /// [filePath] is required and must point to a valid audio file.
+  /// The file will be validated before attempting playback.
+  ///
+  /// Example:
+  /// ```dart
+  /// await recorder.playRecording('/path/to/recording.m4a');
+  /// ```
+  ///
+  /// Throws [FileSystemException] if the file doesn't exist.
+  /// Throws [ArgumentError] if the file path is invalid.
+  Future<void> playRecording(String filePath) async {
+    if (filePath.isEmpty) {
+      throw ArgumentError('File path cannot be empty');
+    }
+
+    final file = File(filePath);
+    if (!await file.exists()) {
+      throw FileSystemException('Audio file not found', filePath);
+    }
+
     return MicStreamRecorderPlatform.instance.playRecording(filePath);
   }
 

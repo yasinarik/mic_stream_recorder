@@ -41,9 +41,15 @@ public class MicStreamRecorderPlugin: NSObject, FlutterPlugin, FlutterStreamHand
 
   private let amplitudeQueue = DispatchQueue(label: "amplitude.queue")
 
+  private var customFilePath: String?
+
   private var tempFileURL: URL {
-    let dir = FileManager.default.temporaryDirectory
-    return dir.appendingPathComponent("mic_stream_recording.m4a")
+    if let customPath = customFilePath {
+      return URL(fileURLWithPath: customPath)
+    } else {
+      let dir = FileManager.default.temporaryDirectory
+      return dir.appendingPathComponent("mic_stream_recording.m4a")
+    }
   }
 
   public static func register(with registrar: FlutterPluginRegistrar) {
@@ -61,14 +67,23 @@ public class MicStreamRecorderPlugin: NSObject, FlutterPlugin, FlutterStreamHand
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
     case "start":
-      startSession()
+      let filePath = call.arguments as? String
+      startSession(filePath: filePath)
       result(nil)
     case "stop":
       stopSession()
       result(tempFileURL.path)
     case "play":
-      playRecording(filePath: call.arguments as? String)
-      result(nil)
+      if let filePath = call.arguments as? String {
+        playRecording(filePath: filePath)
+        result(nil)
+      } else {
+        result(
+          FlutterError(
+            code: "MISSING_ARGUMENT",
+            message: "File path is required for playback",
+            details: nil))
+      }
     case "pausePlayback":
       pausePlayback()
       result(nil)
@@ -144,7 +159,8 @@ public class MicStreamRecorderPlugin: NSObject, FlutterPlugin, FlutterStreamHand
     return nil
   }
 
-  private func startSession() {
+  private func startSession(filePath: String?) {
+    customFilePath = filePath
     requestMicPermission { [weak self] granted in
       guard granted, let self = self else { return }
 
@@ -261,14 +277,8 @@ public class MicStreamRecorderPlugin: NSObject, FlutterPlugin, FlutterStreamHand
 
   // MARK: - Playback Methods
 
-  private func playRecording(filePath: String?) {
-    let fileURL: URL
-
-    if let filePath = filePath {
-      fileURL = URL(fileURLWithPath: filePath)
-    } else {
-      fileURL = tempFileURL
-    }
+  private func playRecording(filePath: String) {
+    let fileURL = URL(fileURLWithPath: filePath)
 
     guard FileManager.default.fileExists(atPath: fileURL.path) else {
       print("Audio file does not exist at path: \(fileURL.path)")

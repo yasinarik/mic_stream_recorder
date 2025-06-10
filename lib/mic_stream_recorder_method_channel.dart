@@ -21,8 +21,8 @@ class MethodChannelMicStreamRecorder extends MicStreamRecorderPlatform {
   }
 
   @override
-  Future<void> startRecording() async {
-    await methodChannel.invokeMethod<void>('start');
+  Future<void> startRecording([String? filePath]) async {
+    await methodChannel.invokeMethod<void>('start', filePath);
   }
 
   @override
@@ -32,7 +32,7 @@ class MethodChannelMicStreamRecorder extends MicStreamRecorderPlatform {
   }
 
   @override
-  Future<void> playRecording([String? filePath]) async {
+  Future<void> playRecording(String filePath) async {
     await methodChannel.invokeMethod<void>('play', filePath);
   }
 

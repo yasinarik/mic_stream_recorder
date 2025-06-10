@@ -8,33 +8,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2024-12-29
 
 ### Added
-- **Initial stable release** of mic_stream_recorder plugin
-- **Real-time microphone recording** with amplitude monitoring for iOS and Android
-- **Cross-platform support** with comprehensive implementations for both platforms
-- **M4A/AAC audio format** recording for optimal quality and compression
-- **Real-time amplitude streaming** for audio visualization (0.0 - 1.0 normalized values)
-- **Configurable recording settings**: sample rate, channels, buffer size, audio quality
-- **Complete playback functionality**: play, pause, stop controls
-- **Automatic permission handling** for microphone access on both platforms
-- **Event channel streaming** for real-time audio amplitude data
-- **Comprehensive example app** with visual amplitude meter and recording controls
-- **Full API documentation** with usage examples
-- **Cross-platform API consistency** between iOS and Android implementations
+- **Core Recording Features**
+  - Real-time microphone recording with M4A/AAC format
+  - Configurable recording settings (sample rate: 8000-48000 Hz, channels: 1-2, buffer size, audio quality)
+  - Automatic microphone permission handling on both platforms
 
-### Features
-- **iOS Implementation**: AVAudioEngine + AVAudioRecorder with real-time processing
-- **Android Implementation**: MediaRecorder + AudioRecord for recording and monitoring
-- **Sample Rate Support**: 8000, 16000, 22050, 44100, 48000 Hz
-- **Audio Quality Levels**: Min, Low, Medium, High, Max (32k-192k bitrate)
-- **Buffer Size Options**: 128, 256, 512, 1024+ samples
-- **Automatic file management** in platform-appropriate cache directories
-- **Error handling and validation** for all recording parameters
-- **Permission flow integration** with Flutter's activity lifecycle
+- **Enhanced File Management**
+  - **Optional custom file path for recording** - specify where to save recordings or use default location
+  - **Required file path for playback** - validate file existence before attempting playback
+  - **File validation** - automatic checking of file existence with proper error handling
+  - Support for custom recording locations using `startRecording([String? filePath])`
 
-### Technical Details
-- Uses Method Channels for cross-platform communication
-- Event Channels for real-time amplitude streaming
-- Platform-specific optimizations for audio processing
-- Memory-efficient buffer management
-- Thread-safe amplitude calculations
-- Proper resource cleanup and lifecycle management
+- **Real-time Audio Monitoring**
+  - Live amplitude stream with normalized values (0.0 to 1.0)
+  - Real-time audio level visualization support
+  - Background amplitude processing with main thread UI updates
+
+- **Comprehensive Playback Controls**
+  - Play, pause, and stop audio playback with file path validation
+  - Playback status monitoring with `isPlaying()` method
+  - Automatic resource cleanup on playback completion
+
+- **Cross-Platform Implementation**
+  - **iOS**: AVAudioEngine + AVAudioRecorder + AVAudioPlayer with hardware-optimized processing
+  - **Android**: MediaRecorder + AudioRecord + MediaPlayer with runtime permission handling
+  - Consistent API across both platforms with platform-specific optimizations
+
+- **Developer Experience**
+  - Comprehensive error handling with specific exception types
+  - Detailed API documentation with usage examples
+  - Enhanced example app with custom file naming and file list management
+  - Full test coverage with updated test cases
+
+### Enhanced API
+- `startRecording([String? filePath])` - Start recording with optional custom file path
+- `playRecording(String filePath)` - Play audio file with required path validation
+- Throws `FileSystemException` for missing files and `ArgumentError` for invalid paths
+- Improved error messages and debugging information
+
+### Technical Improvements
+- Efficient file path management with fallback to default locations
+- Enhanced native implementations for both iOS and Android
+- Better resource management and cleanup
+- Optimized amplitude calculation and streaming

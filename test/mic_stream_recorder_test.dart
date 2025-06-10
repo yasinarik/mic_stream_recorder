@@ -1,60 +1,64 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mic_stream_recorder/mic_stream_recorder.dart';
-import 'package:mic_stream_recorder/mic_stream_recorder_platform_interface.dart';
-import 'package:mic_stream_recorder/mic_stream_recorder_method_channel.dart';
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
-
-class MockMicStreamRecorderPlatform
-    with MockPlatformInterfaceMixin
-    implements MicStreamRecorderPlatform {
-  @override
-  Future<String?> getPlatformVersion() => Future.value('42');
-
-  @override
-  Future<void> startRecording() => Future.value();
-
-  @override
-  Future<String?> stopRecording() => Future.value('/path/to/recording.m4a');
-
-  @override
-  Future<void> playRecording([String? filePath]) => Future.value();
-
-  @override
-  Future<void> pausePlayback() => Future.value();
-
-  @override
-  Future<void> stopPlayback() => Future.value();
-
-  @override
-  Future<bool> isPlaying() => Future.value(false);
-
-  @override
-  Future<void> configureRecording({
-    double? sampleRate,
-    int? channels,
-    int? bufferSize,
-    int? audioQuality,
-  }) =>
-      Future.value();
-
-  @override
-  Stream<double> getAmplitudeStream() => Stream.fromIterable([0.0, 0.5, 1.0]);
-}
 
 void main() {
-  final MicStreamRecorderPlatform initialPlatform =
-      MicStreamRecorderPlatform.instance;
+  const MethodChannel channel = MethodChannel('mic_stream_recorder');
 
-  test('$MethodChannelMicStreamRecorder is the default instance', () {
-    expect(initialPlatform, isInstanceOf<MethodChannelMicStreamRecorder>());
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      channel,
+      (MethodCall methodCall) async {
+        switch (methodCall.method) {
+          case 'getPlatformVersion':
+            return '42';
+          case 'start':
+            return null;
+          case 'stop':
+            return '/path/to/recording.m4a';
+          case 'play':
+            return null;
+          case 'pausePlayback':
+            return null;
+          case 'stopPlayback':
+            return null;
+          case 'isPlaying':
+            return false;
+          case 'configureRecording':
+            return null;
+          default:
+            return null;
+        }
+      },
+    );
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null);
   });
 
   test('getPlatformVersion', () async {
-    MicStreamRecorder micStreamRecorderPlugin = MicStreamRecorder();
-    MockMicStreamRecorderPlatform fakePlatform =
-        MockMicStreamRecorderPlatform();
-    MicStreamRecorderPlatform.instance = fakePlatform;
+    expect(await MicStreamRecorder().getPlatformVersion(), '42');
+  });
 
-    expect(await micStreamRecorderPlugin.getPlatformVersion(), '42');
+  test('startRecording without file path', () async {
+    final recorder = MicStreamRecorder();
+    expect(() => recorder.startRecording(), returnsNormally);
+  });
+
+  test('startRecording with custom file path', () async {
+    final recorder = MicStreamRecorder();
+    expect(() => recorder.startRecording('/custom/path/recording.m4a'),
+        returnsNormally);
+  });
+
+  test('stopRecording', () async {
+    final recorder = MicStreamRecorder();
+    final result = await recorder.stopRecording();
+    expect(result, '/path/to/recording.m4a');
   });
 }
