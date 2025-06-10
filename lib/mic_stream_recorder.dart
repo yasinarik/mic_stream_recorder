@@ -1,13 +1,5 @@
 import 'mic_stream_recorder_platform_interface.dart';
 
-/// Audio format options for recording
-enum AudioFormat {
-  m4a, // Both iOS and Android
-  wav, // Both iOS and Android
-  aiff, // iOS only
-  webm, // Android only
-}
-
 /// Audio quality options for recording
 enum AudioQuality {
   min,
@@ -22,14 +14,12 @@ class RecordingConfig {
   final double sampleRate;
   final int channels;
   final int bufferSize;
-  final AudioFormat audioFormat;
   final AudioQuality audioQuality;
 
   const RecordingConfig({
     this.sampleRate = 44100,
     this.channels = 1,
     this.bufferSize = 128,
-    this.audioFormat = AudioFormat.m4a,
     this.audioQuality = AudioQuality.high,
   });
 
@@ -38,7 +28,6 @@ class RecordingConfig {
       'sampleRate': sampleRate,
       'channels': channels,
       'bufferSize': bufferSize,
-      'audioFormat': audioFormat.name,
       'audioQuality': audioQuality.index,
     };
   }
@@ -55,13 +44,14 @@ class MicStreamRecorder {
   ///
   /// This will request microphone permissions if not already granted
   /// and start recording audio with the current configuration.
+  /// Audio will be recorded in M4A format with AAC encoding.
   Future<void> startRecording() {
     return MicStreamRecorderPlatform.instance.startRecording();
   }
 
   /// Stop recording audio
   ///
-  /// Returns the file path of the recorded audio file.
+  /// Returns the file path of the recorded M4A audio file.
   Future<String?> stopRecording() {
     return MicStreamRecorderPlatform.instance.stopRecording();
   }
@@ -79,7 +69,7 @@ class MicStreamRecorder {
     return MicStreamRecorderPlatform.instance.pausePlayback();
   }
 
-  /// Stop audio playbook completely
+  /// Stop audio playback completely
   Future<void> stopPlayback() {
     return MicStreamRecorderPlatform.instance.stopPlayback();
   }
@@ -92,13 +82,13 @@ class MicStreamRecorder {
   /// Configure recording settings
   ///
   /// This should be called before starting recording to apply the settings.
+  /// All recordings will be in M4A format with AAC encoding.
   ///
   /// Example:
   /// ```dart
   /// await recorder.configureRecording(
   ///   sampleRate: 44100,
   ///   channels: 1,
-  ///   audioFormat: AudioFormat.wav,
   ///   audioQuality: AudioQuality.high,
   /// );
   /// ```
@@ -106,14 +96,12 @@ class MicStreamRecorder {
     double? sampleRate,
     int? channels,
     int? bufferSize,
-    AudioFormat? audioFormat,
     AudioQuality? audioQuality,
   }) {
     return MicStreamRecorderPlatform.instance.configureRecording(
       sampleRate: sampleRate,
       channels: channels,
       bufferSize: bufferSize,
-      audioFormat: audioFormat?.name,
       audioQuality: audioQuality?.index,
     );
   }
@@ -125,7 +113,6 @@ class MicStreamRecorder {
       sampleRate: configMap['sampleRate'],
       channels: configMap['channels'],
       bufferSize: configMap['bufferSize'],
-      audioFormat: configMap['audioFormat'],
       audioQuality: configMap['audioQuality'],
     );
   }

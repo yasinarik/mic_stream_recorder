@@ -9,34 +9,14 @@ struct RecordingConfig {
   var sampleRate: Double
   var channels: Int
   var bufferSize: Int
-  var audioFormat: AVAudioRecorder.AudioFormat
   var audioQuality: AVAudioQuality
 
   static let `default` = RecordingConfig(
     sampleRate: 44100,  // Use more standard sample rate
     channels: 1,
     bufferSize: 128,
-    audioFormat: .m4a,
     audioQuality: .high
   )
-}
-
-extension AVAudioRecorder {
-  enum AudioFormat: String, CaseIterable {
-    case m4a, wav, aiff
-
-    var formatID: AudioFormatID {
-      switch self {
-      case .m4a: return kAudioFormatMPEG4AAC
-      case .wav: return kAudioFormatLinearPCM
-      case .aiff: return kAudioFormatLinearPCM
-      }
-    }
-
-    var fileExtension: String {
-      return self.rawValue
-    }
-  }
 }
 
 extension AVAudioQuality {
@@ -63,8 +43,7 @@ public class MicStreamRecorderPlugin: NSObject, FlutterPlugin, FlutterStreamHand
 
   private var tempFileURL: URL {
     let dir = FileManager.default.temporaryDirectory
-    return dir.appendingPathComponent(
-      "mic_stream_recording.\(config.audioFormat.fileExtension)")
+    return dir.appendingPathComponent("mic_stream_recording.m4a")
   }
 
   public static func register(with registrar: FlutterPluginRegistrar) {
@@ -136,12 +115,6 @@ public class MicStreamRecorderPlugin: NSObject, FlutterPlugin, FlutterStreamHand
         if validBufferSizes.contains(bufferSize) {
           config.bufferSize = bufferSize
         }
-      }
-
-      if let audioFormatString = args["audioFormat"] as? String,
-        let audioFormat = AVAudioRecorder.AudioFormat(rawValue: audioFormatString)
-      {
-        config.audioFormat = audioFormat
       }
 
       if let audioQualityIndex = args["audioQuality"] as? Int {
@@ -253,18 +226,11 @@ public class MicStreamRecorderPlugin: NSObject, FlutterPlugin, FlutterStreamHand
 
   private func setupRecorder() {
     var settings: [String: Any] = [
-      AVFormatIDKey: config.audioFormat.formatID,
+      AVFormatIDKey: kAudioFormatMPEG4AAC,
       AVSampleRateKey: config.sampleRate,
       AVNumberOfChannelsKey: config.channels,
       AVEncoderAudioQualityKey: config.audioQuality.rawValue,
     ]
-
-    // Add format-specific settings for WAV and AIFF
-    if config.audioFormat == .wav || config.audioFormat == .aiff {
-      settings[AVLinearPCMBitDepthKey] = 16
-      settings[AVLinearPCMIsFloatKey] = false
-      settings[AVLinearPCMIsBigEndianKey] = false
-    }
 
     do {
       audioRecorder = try AVAudioRecorder(url: tempFileURL, settings: settings)

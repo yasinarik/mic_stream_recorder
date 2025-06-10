@@ -80,7 +80,6 @@ class _RecordingPageState extends State<RecordingPage> {
       await _micStreamRecorderPlugin.configureRecording(
         sampleRate: 44100,
         channels: 1,
-        audioFormat: AudioFormat.m4a,
         audioQuality: AudioQuality.high,
       );
 

@@ -31,15 +31,8 @@ data class RecordingConfig(
     var sampleRate: Int = 44100,
     var channels: Int = 1,
     var bufferSize: Int = 1024,
-    var audioFormat: RecordingFormat = RecordingFormat.M4A,
     var audioQuality: AudioQuality = AudioQuality.HIGH
 ) {
-    enum class RecordingFormat(val extension: String, val outputFormat: Int) {
-        M4A("m4a", MediaRecorder.OutputFormat.MPEG_4),
-        WAV("wav", MediaRecorder.OutputFormat.DEFAULT),
-        WEBM("webm", MediaRecorder.OutputFormat.WEBM)
-    }
-
     enum class AudioQuality(val bitRate: Int) {
         MIN(32000),
         LOW(64000),
@@ -205,20 +198,14 @@ class MicStreamRecorderPlugin: FlutterPlugin, MethodCallHandler, ActivityAware,
 
     private fun setupRecording() {
         // Create recording file
-        val fileName = "mic_stream_recording.${config.audioFormat.extension}"
+        val fileName = "mic_stream_recording.m4a"
         currentRecordingFile = File(context.cacheDir, fileName)
 
         // Setup MediaRecorder
         mediaRecorder = MediaRecorder().apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(config.audioFormat.outputFormat)
-            
-            when (config.audioFormat) {
-                RecordingConfig.RecordingFormat.M4A -> setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                RecordingConfig.RecordingFormat.WAV -> setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT)
-                RecordingConfig.RecordingFormat.WEBM -> setAudioEncoder(MediaRecorder.AudioEncoder.VORBIS)
-            }
-            
+            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
             setAudioSamplingRate(config.sampleRate)
             setAudioChannels(config.channels)
             setAudioEncodingBitRate(config.audioQuality.bitRate)
@@ -401,17 +388,6 @@ class MicStreamRecorderPlugin: FlutterPlugin, MethodCallHandler, ActivityAware,
                 val bufferSize = (it as? Number)?.toInt() ?: config.bufferSize
                 if (isValidBufferSize(bufferSize)) {
                     config.bufferSize = bufferSize
-                }
-            }
-
-            args["audioFormat"]?.let {
-                val formatString = it as? String
-                formatString?.let { str ->
-                    try {
-                        config.audioFormat = RecordingConfig.RecordingFormat.valueOf(str.uppercase())
-                    } catch (e: IllegalArgumentException) {
-                        // Keep current format if invalid
-                    }
                 }
             }
 
