@@ -389,47 +389,48 @@ class MicStreamRecorderPlugin: FlutterPlugin, MethodCallHandler, ActivityAware,
         }
 
         try {
-            call.arguments?.let { args ->
-                args["sampleRate"]?.let { 
-                    val sampleRate = (it as? Number)?.toInt() ?: config.sampleRate
-                    if (isValidSampleRate(sampleRate)) {
-                        config.sampleRate = sampleRate
-                    }
+            @Suppress("UNCHECKED_CAST")
+            val args = call.arguments as? Map<String, Any> ?: return
+            
+            args["sampleRate"]?.let { 
+                val sampleRate = (it as? Number)?.toInt() ?: config.sampleRate
+                if (isValidSampleRate(sampleRate)) {
+                    config.sampleRate = sampleRate
                 }
+            }
 
-                args["channels"]?.let {
-                    val channels = (it as? Number)?.toInt() ?: config.channels
-                    config.channels = maxOf(1, minOf(2, channels)) // Clamp to 1-2
-                }
+            args["channels"]?.let {
+                val channels = (it as? Number)?.toInt() ?: config.channels
+                config.channels = maxOf(1, minOf(2, channels)) // Clamp to 1-2
+            }
 
-                args["bufferSize"]?.let {
-                    val bufferSize = (it as? Number)?.toInt() ?: config.bufferSize
-                    if (isValidBufferSize(bufferSize)) {
-                        config.bufferSize = bufferSize
-                    }
+            args["bufferSize"]?.let {
+                val bufferSize = (it as? Number)?.toInt() ?: config.bufferSize
+                if (isValidBufferSize(bufferSize)) {
+                    config.bufferSize = bufferSize
                 }
+            }
 
-                args["audioQuality"]?.let {
-                    val qualityIndex = (it as? Number)?.toInt() ?: 3
-                    config.audioQuality = when (qualityIndex) {
-                        0 -> RecordingConfig.AudioQuality.MIN
-                        1 -> RecordingConfig.AudioQuality.LOW
-                        2 -> RecordingConfig.AudioQuality.MEDIUM
-                        3 -> RecordingConfig.AudioQuality.HIGH
-                        4 -> RecordingConfig.AudioQuality.MAX
-                        else -> RecordingConfig.AudioQuality.HIGH
-                    }
+            args["audioQuality"]?.let {
+                val qualityIndex = (it as? Number)?.toInt() ?: 3
+                config.audioQuality = when (qualityIndex) {
+                    0 -> RecordingConfig.AudioQuality.MIN
+                    1 -> RecordingConfig.AudioQuality.LOW
+                    2 -> RecordingConfig.AudioQuality.MEDIUM
+                    3 -> RecordingConfig.AudioQuality.HIGH
+                    4 -> RecordingConfig.AudioQuality.MAX
+                    else -> RecordingConfig.AudioQuality.HIGH
                 }
+            }
 
-                args["amplitudeMin"]?.let {
-                    val amplitudeMin = (it as? Number)?.toDouble() ?: 0.0
-                    config.amplitudeMin = amplitudeMin
-                }
+            args["amplitudeMin"]?.let {
+                val amplitudeMin = (it as? Number)?.toDouble() ?: 0.0
+                config.amplitudeMin = amplitudeMin
+            }
 
-                args["amplitudeMax"]?.let {
-                    val amplitudeMax = (it as? Number)?.toDouble() ?: 1.0
-                    config.amplitudeMax = amplitudeMax
-                }
+            args["amplitudeMax"]?.let {
+                val amplitudeMax = (it as? Number)?.toDouble() ?: 1.0
+                config.amplitudeMax = amplitudeMax
             }
 
             result.success(null)
