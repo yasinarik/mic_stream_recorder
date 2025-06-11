@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2024-12-28
+
+### Changed
+- **BREAKING**: Removed amplitude normalization from core plugin functionality
+- Amplitude stream now returns clean 0.0-1.0 values directly from audio processing
+- Moved amplitude range normalization to example app as a post-processing demonstration
+- Simplified plugin API by removing `amplitudeMin` and `amplitudeMax` parameters from `configureRecording()`
+- Updated example app to show how to implement custom amplitude normalization as a UI feature
+
+### Improved
+- Cleaner, more focused plugin architecture
+- Better separation of concerns between core functionality and UI examples
+- Enhanced example app with clear post-processing demonstration
+- More intuitive API for developers who want raw amplitude values
+
 ## [1.1.0] - 2024-12-28
 
 ### Enhanced
