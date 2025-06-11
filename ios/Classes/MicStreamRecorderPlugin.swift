@@ -240,9 +240,15 @@ public class MicStreamRecorderPlugin: NSObject, FlutterPlugin, FlutterStreamHand
       guard let channelData = buffer.floatChannelData?[0] else { return }
       let frameLength = Int(buffer.frameLength)
 
-      var rms: Float = 0
-      vDSP_measqv(channelData, 1, &rms, vDSP_Length(frameLength))
-      let db = 20 * log10(sqrt(rms)).clamped(to: -80...0)
+      // Convert Float data to Double for consistent processing
+      var doubleData = [Double](repeating: 0.0, count: frameLength)
+      for i in 0..<frameLength {
+        doubleData[i] = Double(channelData[i])
+      }
+
+      var rms: Double = 0
+      vDSP_measqvD(doubleData, 1, &rms, vDSP_Length(frameLength))
+      let db = (20 * log10(sqrt(rms))).clamped(to: -80...0)
 
       // Normalize to 0.0-1.0 first
       let baseNormalized = (db + 80) / 80.0
@@ -253,7 +259,7 @@ public class MicStreamRecorderPlugin: NSObject, FlutterPlugin, FlutterStreamHand
         + (baseNormalized * (self.config.amplitudeMax - self.config.amplitudeMin))
 
       DispatchQueue.main.async {
-        self.eventSink?(Double(customNormalized))
+        self.eventSink?(customNormalized)
       }
     }
   }
