@@ -10,16 +10,12 @@ struct RecordingConfig {
   var channels: Int
   var bufferSize: Int
   var audioQuality: AVAudioQuality
-  var amplitudeMin: Double
-  var amplitudeMax: Double
 
   static let `default` = RecordingConfig(
     sampleRate: 44100,  // Use more standard sample rate
     channels: 1,
     bufferSize: 128,
-    audioQuality: .high,
-    amplitudeMin: 0.0,
-    amplitudeMax: 1.0
+    audioQuality: .high
   )
 }
 
@@ -140,14 +136,6 @@ public class MicStreamRecorderPlugin: NSObject, FlutterPlugin, FlutterStreamHand
         config.audioQuality = AVAudioQuality(from: audioQualityIndex)
       }
 
-      if let amplitudeMin = args["amplitudeMin"] as? Double {
-        config.amplitudeMin = amplitudeMin
-      }
-
-      if let amplitudeMax = args["amplitudeMax"] as? Double {
-        config.amplitudeMax = amplitudeMax
-      }
-
       print("Recording configuration updated: \(config)")
       result(nil)
     } catch {
@@ -250,16 +238,11 @@ public class MicStreamRecorderPlugin: NSObject, FlutterPlugin, FlutterStreamHand
       vDSP_measqvD(doubleData, 1, &rms, vDSP_Length(frameLength))
       let db = (20 * log10(sqrt(rms))).clamped(to: -80...0)
 
-      // Normalize to 0.0-1.0 first
-      let baseNormalized = (db + 80) / 80.0
-
-      // Apply custom range normalization
-      let customNormalized =
-        self.config.amplitudeMin
-        + (baseNormalized * (self.config.amplitudeMax - self.config.amplitudeMin))
+      // Normalize to 0.0-1.0 range
+      let normalizedAmplitude = (db + 80) / 80.0
 
       DispatchQueue.main.async {
-        self.eventSink?(customNormalized)
+        self.eventSink?(normalizedAmplitude)
       }
     }
   }

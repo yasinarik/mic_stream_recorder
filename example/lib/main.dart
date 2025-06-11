@@ -30,8 +30,8 @@ class RecordingPage extends StatefulWidget {
 }
 
 class _RecordingPageState extends State<RecordingPage> {
-  final _recorder = MicStreamRecorder();
-  final _fileNameController = TextEditingController();
+  final MicStreamRecorder _recorder = MicStreamRecorder();
+  final TextEditingController _fileNameController = TextEditingController();
 
   bool _isRecording = false;
   bool _isPlaying = false;
@@ -43,10 +43,27 @@ class _RecordingPageState extends State<RecordingPage> {
   @override
   void initState() {
     super.initState();
-    _recorder.amplitudeStream.listen((amplitude) {
-      if (mounted) setState(() => _currentAmplitude = amplitude);
-    });
     _loadRecordingFiles();
+    _setupAmplitudeListener();
+  }
+
+  void _setupAmplitudeListener() {
+    _recorder.amplitudeStream.listen((rawAmplitude) {
+      if (mounted && _isRecording) {
+        // Post-process the raw 0.0-1.0 amplitude to custom range
+        final normalizedAmplitude = _normalizeAmplitude(rawAmplitude);
+        setState(() => _currentAmplitude = normalizedAmplitude);
+      }
+    });
+  }
+
+  /// Post-process raw amplitude (0.0-1.0) to custom range
+  double _normalizeAmplitude(double rawAmplitude) {
+    final minPercent = _amplitudeRange.start / 100.0;
+    final maxPercent = _amplitudeRange.end / 100.0;
+
+    // Apply custom range normalization
+    return minPercent + (rawAmplitude * (maxPercent - minPercent));
   }
 
   @override
@@ -70,21 +87,9 @@ class _RecordingPageState extends State<RecordingPage> {
     }
   }
 
-  Future<void> _updateAmplitudeRange() async {
-    try {
-      await _recorder.configureRecording(
-        amplitudeMin: _amplitudeRange.start / 100.0,
-        amplitudeMax: _amplitudeRange.end / 100.0,
-      );
-    } catch (e) {
-      _showMessage('Failed to update configuration: $e', isError: true);
-    }
-  }
-
   Future<void> _startRecording() async {
     if (_isRecording) return;
     try {
-      await _updateAmplitudeRange();
       String? customPath;
       if (_fileNameController.text.isNotEmpty) {
         final directory = await getApplicationDocumentsDirectory();
@@ -186,7 +191,6 @@ class _RecordingPageState extends State<RecordingPage> {
 
   void _setAmplitudeRange(double start, double end) {
     setState(() => _amplitudeRange = RangeValues(start, end));
-    _updateAmplitudeRange();
   }
 
   @override
@@ -210,7 +214,6 @@ class _RecordingPageState extends State<RecordingPage> {
               isRecording: _isRecording,
               onRangeChanged: (values) =>
                   setState(() => _amplitudeRange = values),
-              onRangeChangeEnd: (_) => _updateAmplitudeRange(),
               onPresetSelected: _setAmplitudeRange,
             ),
             const SizedBox(height: 16),
@@ -309,95 +312,6 @@ class FileNameInputCard extends StatelessWidget {
           suffixText: '.m4a',
         ),
       ),
-    );
-  }
-}
-
-// Amplitude range slider widget
-class AmplitudeRangeCard extends StatelessWidget {
-  final RangeValues amplitudeRange;
-  final bool isRecording;
-  final ValueChanged<RangeValues> onRangeChanged;
-  final ValueChanged<RangeValues> onRangeChangeEnd;
-  final Function(double, double) onPresetSelected;
-
-  const AmplitudeRangeCard({
-    super.key,
-    required this.amplitudeRange,
-    required this.isRecording,
-    required this.onRangeChanged,
-    required this.onRangeChangeEnd,
-    required this.onPresetSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return CardWrapper(
-      title: 'Amplitude Range',
-      child: Column(
-        children: [
-          Text(
-            'Min: ${amplitudeRange.start.toStringAsFixed(1)}% | Max: ${amplitudeRange.end.toStringAsFixed(1)}%',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 8),
-          RangeSlider(
-            values: amplitudeRange,
-            min: 0.0,
-            max: 100.0,
-            divisions: 100,
-            labels: RangeLabels(
-              '${amplitudeRange.start.toStringAsFixed(1)}%',
-              '${amplitudeRange.end.toStringAsFixed(1)}%',
-            ),
-            onChanged: isRecording ? null : onRangeChanged,
-            onChangeEnd: isRecording ? null : onRangeChangeEnd,
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: [
-              PresetButton(
-                label: 'Full 0-100%',
-                isEnabled: !isRecording,
-                onPressed: () => onPresetSelected(0.0, 100.0),
-              ),
-              PresetButton(
-                label: 'Mid 20-80%',
-                isEnabled: !isRecording,
-                onPressed: () => onPresetSelected(20.0, 80.0),
-              ),
-              PresetButton(
-                label: 'Focus 30-70%',
-                isEnabled: !isRecording,
-                onPressed: () => onPresetSelected(30.0, 70.0),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Preset button widget
-class PresetButton extends StatelessWidget {
-  final String label;
-  final bool isEnabled;
-  final VoidCallback onPressed;
-
-  const PresetButton({
-    super.key,
-    required this.label,
-    required this.isEnabled,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: isEnabled ? onPressed : null,
-      child: Text(label),
     );
   }
 }
@@ -568,6 +482,93 @@ class RecordingFilesCard extends StatelessWidget {
                 );
               },
             ),
+    );
+  }
+}
+
+// Amplitude range card - demonstrates post-processing of raw amplitude values
+class AmplitudeRangeCard extends StatelessWidget {
+  final RangeValues amplitudeRange;
+  final bool isRecording;
+  final ValueChanged<RangeValues> onRangeChanged;
+  final Function(double, double) onPresetSelected;
+
+  const AmplitudeRangeCard({
+    super.key,
+    required this.amplitudeRange,
+    required this.isRecording,
+    required this.onRangeChanged,
+    required this.onPresetSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CardWrapper(
+      title: 'Amplitude Range (Post-Processing Demo)',
+      child: Column(
+        children: [
+          Text(
+            'Plugin returns raw 0.0-1.0 values.\nExample shows post-processing to ${amplitudeRange.start.toStringAsFixed(0)}%-${amplitudeRange.end.toStringAsFixed(0)}%',
+            style: Theme.of(context).textTheme.bodySmall,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          RangeSlider(
+            values: amplitudeRange,
+            min: 0.0,
+            max: 100.0,
+            divisions: 100,
+            labels: RangeLabels(
+              '${amplitudeRange.start.toStringAsFixed(0)}%',
+              '${amplitudeRange.end.toStringAsFixed(0)}%',
+            ),
+            onChanged: isRecording ? null : onRangeChanged,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              PresetButton(
+                label: 'Full 0-100%',
+                isEnabled: !isRecording,
+                onPressed: () => onPresetSelected(0.0, 100.0),
+              ),
+              PresetButton(
+                label: 'Mid 20-80%',
+                isEnabled: !isRecording,
+                onPressed: () => onPresetSelected(20.0, 80.0),
+              ),
+              PresetButton(
+                label: 'Focus 30-70%',
+                isEnabled: !isRecording,
+                onPressed: () => onPresetSelected(30.0, 70.0),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Preset button widget
+class PresetButton extends StatelessWidget {
+  final String label;
+  final bool isEnabled;
+  final VoidCallback onPressed;
+
+  const PresetButton({
+    super.key,
+    required this.label,
+    required this.isEnabled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: isEnabled ? onPressed : null,
+      child: Text(label),
     );
   }
 }

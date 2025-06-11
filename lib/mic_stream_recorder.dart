@@ -16,16 +16,12 @@ class RecordingConfig {
   final int channels;
   final int bufferSize;
   final AudioQuality audioQuality;
-  final double amplitudeMin;
-  final double amplitudeMax;
 
   const RecordingConfig({
     this.sampleRate = 44100,
     this.channels = 1,
     this.bufferSize = 128,
     this.audioQuality = AudioQuality.high,
-    this.amplitudeMin = 0.0,
-    this.amplitudeMax = 1.0,
   });
 
   Map<String, dynamic> toMap() {
@@ -34,8 +30,6 @@ class RecordingConfig {
       'channels': channels,
       'bufferSize': bufferSize,
       'audioQuality': audioQuality.index,
-      'amplitudeMin': amplitudeMin,
-      'amplitudeMax': amplitudeMax,
     };
   }
 }
@@ -117,17 +111,12 @@ class MicStreamRecorder {
   /// This should be called before starting recording to apply the settings.
   /// All recordings will be in M4A format with AAC encoding.
   ///
-  /// [amplitudeMin] and [amplitudeMax] control the normalization range for
-  /// real-time amplitude values. Default is 0.0 to 1.0.
-  ///
   /// Example:
   /// ```dart
   /// await recorder.configureRecording(
   ///   sampleRate: 44100,
   ///   channels: 1,
   ///   audioQuality: AudioQuality.high,
-  ///   amplitudeMin: -1.0,
-  ///   amplitudeMax: 1.0,
   /// );
   /// ```
   Future<void> configureRecording({
@@ -135,16 +124,12 @@ class MicStreamRecorder {
     int? channels,
     int? bufferSize,
     AudioQuality? audioQuality,
-    double? amplitudeMin,
-    double? amplitudeMax,
   }) {
     return MicStreamRecorderPlatform.instance.configureRecording(
       sampleRate: sampleRate,
       channels: channels,
       bufferSize: bufferSize,
       audioQuality: audioQuality?.index,
-      amplitudeMin: amplitudeMin,
-      amplitudeMax: amplitudeMax,
     );
   }
 
@@ -156,27 +141,18 @@ class MicStreamRecorder {
       channels: configMap['channels'],
       bufferSize: configMap['bufferSize'],
       audioQuality: configMap['audioQuality'],
-      amplitudeMin: configMap['amplitudeMin'],
-      amplitudeMax: configMap['amplitudeMax'],
     );
   }
 
   /// Get real-time amplitude stream for audio level monitoring
   ///
-  /// Returns a stream of amplitude values normalized between the configured
-  /// min and max values (default 0.0 to 1.0).
+  /// Returns a stream of amplitude values normalized between 0.0 and 1.0.
   /// This can be used to create visualizations like amplitude meters.
   ///
-  /// Configure the normalization range using [configureRecording]:
+  /// Example:
   /// ```dart
-  /// // Custom range from -1.0 to 1.0
-  /// await recorder.configureRecording(
-  ///   amplitudeMin: -1.0,
-  ///   amplitudeMax: 1.0,
-  /// );
-  ///
   /// recorder.amplitudeStream.listen((amplitude) {
-  ///   print('Current amplitude: $amplitude'); // Range: -1.0 to 1.0
+  ///   print('Current amplitude: $amplitude'); // Range: 0.0 to 1.0
   ///   // Update UI with amplitude value
   /// });
   /// ```
